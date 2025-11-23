@@ -1,0 +1,4 @@
+﻿@"
+[phases.setup]
+aptPkgs = ['default-mysql-client', 'default-libmysqlclient-dev', 'libcairo2-dev', 'pkg-config', 'python3-dev']
+"@ | Out-File -FilePath nixpacks.toml -Encoding UTF8
