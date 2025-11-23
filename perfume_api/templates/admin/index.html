@@ -1,0 +1,89 @@
+{% extends "admin/index.html" %}
+{% load static %}
+
+{% block content %}
+
+<style>
+    /* Tarjeta Promocional Limpia y Nativa */
+    .dashboard-banner {
+        /* Fondo adaptable: gris muy suave en light, oscuro en dark */
+        background-color: var(--darkened-bg, #f8f8f8);
+        
+        /* Borde sutil del sistema */
+        border: 1px solid var(--hairline-color, #e0e0e0);
+        border-left: 4px solid var(--primary, #79aec8); /* Toque de color de la marca Django */
+        
+        border-radius: 4px;
+        padding: 20px 25px;
+        margin-bottom: 25px;
+        
+        /* Layout */
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .banner-content h2 {
+        /* Texto principal adaptable */
+        color: var(--body-fg, #333);
+        margin: 0 0 5px 0;
+        font-size: 20px;
+        font-weight: 600;
+        padding: 0; /* Django a veces agrega padding a los h2 */
+    }
+
+    .banner-content p {
+        /* Texto secundario adaptable */
+        color: var(--body-quiet-color, #666);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .banner-action {
+        /* Botón usando los colores nativos de botones de Django Admin */
+        background-color: var(--button-bg, #79aec8);
+        color: var(--button-fg, #fff);
+        
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: background-color 0.2s;
+        white-space: nowrap;
+    }
+
+    .banner-action:hover {
+        background-color: var(--button-hover-bg, #609ab6);
+        color: var(--button-fg, #fff);
+    }
+
+    /* Ajuste para móviles */
+    @media (max-width: 600px) {
+        .dashboard-banner {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .banner-action {
+            width: 100%;
+            text-align: center;
+        }
+    }
+</style>
+
+<div class="dashboard-banner">
+    <div class="banner-content">
+        <h2>Panel de Análisis</h2>
+        <p>Resumen de métricas clave, ventas e inventario del sistema.</p>
+    </div>
+    <a href="{% url 'custom_dashboard' %}" class="banner-action">
+        Ver Reportes
+    </a>
+</div>
+
+{{ block.super }}
+{% endblock %}

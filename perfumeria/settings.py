@@ -1,5 +1,7 @@
+# perfumeria/settings.py
 from pathlib import Path
 import os
+from datetime import timedelta
 
 # 📂 BASE_DIR: Carpeta raíz del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,7 +15,6 @@ DEBUG = True
 # 🌍 Permitir todas las IPs en desarrollo
 ALLOWED_HOSTS = [
     "*",
-    # Aunque ALLOWED_HOSTS="*" permite todo, se recomienda añadir tu dominio Ngrok específico:
     'suanne-unamortized-denae.ngrok-free.dev'
 ]
 
@@ -28,16 +29,19 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Apps adicionales
-    'rest_framework',           # API REST
-    'corsheaders',              # Permitir CORS
-    'rolepermissions',          # Manejo de roles y permisos
-    'django_filters',           # Filtros avanzados en API
-    'perfume_api',              # Tu aplicación principal
+    'rest_framework',
+    'corsheaders',
+    'rolepermissions',
+    'django_filters',
+    'django_extensions',
+    
+    # Tu app
+    'perfume_api',
 ]
 
 # 🔹 Middleware
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",    # CORS debe estar antes de CommonMiddleware
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -49,14 +53,18 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'perfumeria.urls'
 
-# 🎨 Configuración de plantillas (si usas Django Templates)
+# 🎨 Configuración de plantillas
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / "templates"],
+        'DIRS': [
+            BASE_DIR / "templates",
+            BASE_DIR / "perfume_api" / "templates",
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -71,10 +79,10 @@ WSGI_APPLICATION = 'perfumeria.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'perfumeria_db',            # Nombre de tu BD
-        'USER': 'root',                     # Usuario
-        'PASSWORD': 'root123',              # Contraseña
-        'HOST': 'localhost',                # O la IP del servidor MySQL
+        'NAME': 'perfumeria_db',
+        'USER': 'root',
+        'PASSWORD': 'root123',
+        'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
@@ -87,38 +95,32 @@ AUTH_USER_MODEL = 'perfume_api.Usuario'
 
 # 🌍 CORS (para React Native / Expo)
 CORS_ALLOW_ALL_ORIGINS = True
-# Si quieres restringir, usa:
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:19006",
-#     "http://127.0.0.1:19006",
-# ]
 
-# ** 🔑 CONFIGURACIÓN NECESARIA PARA NGROK (CSRF) **
-# ESTO RESUELVE EL ERROR 403 (Prohibido)
-# -----------------------------------------------------
+# 🔑 CONFIGURACIÓN CSRF PARA NGROK
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
-    # 1. URL ESPECÍFICA de tu sesión Ngrok actual
-    'https://suanne-unamortized-denae.ngrok-free.dev', 
-    # 2. Patrón con comodín para futuras sesiones de Ngrok (plan gratuito)
-    'https://*.ngrok-free.dev' 
+    'https://suanne-unamortized-denae.ngrok-free.dev',
+    'https://*.ngrok-free.dev'
 ]
-# -----------------------------------------------------
-# ** FIN CONFIGURACIÓN NGROK **
 
 # 🌎 Configuración de idioma y zona horaria
 LANGUAGE_CODE = 'es'
 TIME_ZONE = 'America/Guayaquil'
 USE_I18N = True
-USE_TZ = True
+USE_TZ = False
 
 # 📂 Archivos estáticos
 STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# ✅ SOLO incluir directorios que existan
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 
 # 📂 Archivos multimedia
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # 🔑 Campo por defecto para IDs automáticas
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -126,7 +128,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ⚙️ Configuración de Django REST Framework con JWT
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -138,20 +140,27 @@ REST_FRAMEWORK = {
     ]
 }
 
+# ⏱️ Configuración de JWT (Simple JWT)
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
 # 📧 Configuración de Email (para enviar códigos)
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "maisondeparfumsprofesional@gmail.com" 
+EMAIL_HOST_USER = "maisondeparfumsprofesional@gmail.com"
 EMAIL_HOST_PASSWORD = "tdlj byrx fnbo htcv"
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",    # Mantiene autenticación normal
-    "perfume_api.backends.EmailBackend",            # 🔹 Usar email para login
-]
 
-# (El siguiente bloque es redundante, lo mantengo por si acaso, pero el anterior es el que se usa)
-# AUTHENTICATION_BACKENDS = [
-#     'django.contrib.auth.backends.ModelBackend',    # Mantener compatibilidad
-#     'perfume_api.backends.EmailBackend',  # Nuestro backend personalizado
-# ] 
+# 🔐 Backends de autenticación
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "perfume_api.backends.EmailBackend",
+]

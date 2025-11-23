@@ -1,29 +1,36 @@
+# perfumeria/urls.py
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenRefreshView
-from perfume_api.views_auth import CustomTokenObtainPairView
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import redirect
+from rest_framework_simplejwt.views import TokenRefreshView
+from perfume_api.views_auth import CustomTokenObtainPairView
 
-# 🔹 Redirección automática a /admin si se abre la raíz "/"
+# ==================== REDIRECCIÓN A ADMIN ====================
 def home_redirect(request):
+    """Redirige la raíz al admin"""
     return redirect('/admin/')
 
+# ==================== URLS PRINCIPALES ====================
 urlpatterns = [
-    path('', home_redirect),  # ✅ Si entras a "/", redirige a /admin/
+    # 🏠 Redirección raíz
+    path('', home_redirect, name='home'),
+    
+    # 🔐 Admin de Django
     path('admin/', admin.site.urls),
-
-    # ✅ Login con JWT personalizado (devuelve token + datos de usuario)
+    
+    # 🔑 Autenticación JWT
     path('api/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-
-    # ✅ Refresh token (para renovar tokens de acceso)
     path('api/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-
-    # ✅ Todas las rutas de la app principal (usuarios, marcas, productos, etc.)
+    
+    # 📦 API completa (incluye dashboard en api/admin/dashboard/)
     path('api/', include('perfume_api.urls')),
 ]
 
-# ✅ Para servir archivos multimedia en modo DEBUG
+# ==================== ARCHIVOS ESTÁTICOS Y MEDIA ====================
 if settings.DEBUG:
+    # 📂 Servir archivos multimedia en desarrollo
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # 📂 Servir archivos estáticos en desarrollo
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

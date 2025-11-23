@@ -1,0 +1,303 @@
+{% extends 'admin/base_site.html' %}
+{% load static %}
+
+{% block title %}Dashboard | {{ site_title|default:'Admin' }}{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <style>
+        /* =========================================
+           ESTILOS ADAPTATIVOS (CLARO / OSCURO)
+           ========================================= */
+        
+        /* Usamos las variables nativas de Django para el fondo y texto base */
+        body {
+            background-color: var(--body-bg) !important;
+            color: var(--body-fg) !important;
+        }
+
+        #content {
+            padding: 0 !important;
+            max-width: 100% !important;
+        }
+
+        /* Contenedor del Dashboard */
+        #content-main-dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px 40px;
+        }
+
+        /* Títulos - Usan el color de texto principal de Django */
+        .dashboard-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--body-fg); /* Se adapta a blanco/negro */
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+        
+        .dashboard-subtitle {
+            font-size: 14px;
+            color: var(--body-quiet-color); /* Color gris nativo */
+            margin-bottom: 35px;
+        }
+
+        /* GRID */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        
+        /* TARJETAS DE MÉTRICAS (ADAPTATIVAS) */
+        .metric-card {
+            /* Fondo: blanco en light, gris oscuro en dark */
+            background-color: var(--darkened-bg); 
+            padding: 24px;
+            border-radius: 12px;
+            /* Borde: gris suave en light, gris oscuro en dark */
+            border: 1px solid var(--hairline-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid var(--hairline-color);
+            transition: transform 0.2s;
+        }
+
+        /* Ajuste específico para modo claro para que se vea blanco puro y no gris */
+        @media (prefers-color-scheme: light) {
+            .metric-card {
+                background-color: #ffffff;
+            }
+        }
+        /* Si Django fuerza el tema light */
+        [data-theme="light"] .metric-card {
+            background-color: #ffffff;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            /* Sombra más intensa al pasar el mouse */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-card h3 {
+            margin: 0 0 12px 0;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--body-quiet-color); /* Gris adaptativo */
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--body-fg); /* Texto principal adaptativo */
+            margin: 0 0 8px 0;
+            line-height: 1;
+        }
+
+        .metric-info {
+            font-size: 13px;
+            color: var(--body-quiet-color);
+        }
+
+        /* COLORES DE BORDE Y TEXTO (Se ven bien en ambos modos) */
+        .card-green { border-left-color: #10B981; }
+        .text-green { color: #10B981; }
+
+        .card-blue { border-left-color: #3B82F6; }
+        .text-blue { color: #3B82F6; }
+
+        .card-purple { border-left-color: #8B5CF6; }
+        .text-purple { color: #8B5CF6; }
+
+        .card-cyan { border-left-color: #06B6D4; }
+        .text-cyan { color: #06B6D4; }
+
+        .card-orange { border-left-color: #F59E0B; }
+        .text-orange { color: #F59E0B; }
+
+        .card-red { border-left-color: #EF4444; }
+        .text-red { color: #EF4444; }
+
+        /* SECCIÓN DE GRÁFICO (ADAPTATIVA) */
+        .chart-card {
+            background-color: var(--darkened-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--hairline-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            height: 500px;
+            position: relative;
+        }
+
+        @media (prefers-color-scheme: light) {
+            .chart-card { background-color: #ffffff; }
+        }
+        [data-theme="light"] .chart-card {
+            background-color: #ffffff;
+        }
+
+        .chart-card > div {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Mensaje vacío en modo oscuro */
+        .empty-chart-msg {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--body-quiet-color);
+        }
+
+        /* Ajustes móviles */
+        @media (max-width: 768px) {
+            #content-main-dashboard { padding: 20px; }
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main-dashboard">
+
+    <div class="dashboard-title">Resumen General</div>
+    <div class="dashboard-subtitle">Métricas clave de rendimiento del negocio.</div>
+    
+    <div class="dashboard-grid">
+        
+        <div class="metric-card card-green">
+            <h3>Ventas Totales</h3>
+            <div class="metric-value text-green">{{ ventas_totales }}</div>
+            <div class="metric-info">Ingresos acumulados</div>
+        </div>
+        
+        <div class="metric-card card-blue">
+            <h3>Ordenes</h3>
+            <div class="metric-value text-blue">{{ ordenes_totales }}</div>
+            <div class="metric-info">Transacciones completadas</div>
+        </div>
+        
+        <div class="metric-card card-purple">
+            <h3>Ticket Promedio</h3>
+            <div class="metric-value text-purple">{{ ticket_promedio }}</div>
+            <div class="metric-info">Valor medio por venta</div>
+        </div>
+        
+        <div class="metric-card card-cyan">
+            <h3>Clientes</h3>
+            <div class="metric-value text-cyan">{{ clientes_totales }}</div>
+            <div class="metric-info">Usuarios registrados</div>
+        </div>
+
+        <div class="metric-card card-orange">
+            <h3>Productos</h3>
+            <div class="metric-value text-orange">{{ productos_total }}</div>
+            <div class="metric-info">En catálogo</div>
+        </div>
+
+        <div class="metric-card card-red">
+            <h3>Agotados</h3>
+            <div class="metric-value text-red">{{ productos_agotados }}</div>
+            <div class="metric-info">Stock en 0</div>
+        </div>
+        
+    </div>
+    
+    <div class="dashboard-title" style="font-size: 20px; margin-top: 40px;">Análisis de Ventas</div>
+    <div class="dashboard-subtitle">Comportamiento diario de facturación.</div>
+
+    <div class="chart-card">
+        {% if plot_ventas_diarias %}
+            {{ plot_ventas_diarias|safe }}
+        {% else %}
+            <div class="empty-chart-msg">
+                <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📊</div>
+                <p>No hay suficientes datos para generar el gráfico.</p>
+                <small>Se necesitan al menos registros de los últimos 30 días.</small>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script>
+    // Función para ajustar el tema del gráfico de Plotly
+    // Plotly no cambia automáticamente, así que debemos forzar el color de fondo y texto
+    function updatePlotlyTheme() {
+        // Detectar si el tema es oscuro revisando el atributo del body o html
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || 
+                       (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !document.documentElement.getAttribute('data-theme'));
+        
+        const textColor = isDark ? '#f0f0f0' : '#333';
+        const gridColor = isDark ? '#444' : '#f0f0f0';
+        
+        // Buscar el gráfico
+        const plotDiv = document.querySelector('.chart-card > div');
+        if (plotDiv && plotDiv.id && typeof Plotly !== 'undefined') {
+            Plotly.relayout(plotDiv.id, {
+                'font.color': textColor,
+                'xaxis.linecolor': isDark ? '#555' : '#ddd',
+                'xaxis.gridcolor': gridColor,
+                'yaxis.gridcolor': gridColor,
+                // Mantenemos el fondo transparente para que tome el color de la tarjeta
+                'paper_bgcolor': 'rgba(0,0,0,0)',
+                'plot_bgcolor': 'rgba(0,0,0,0)'
+            });
+        }
+    }
+
+    window.onload = function() {
+        setTimeout(function() {
+            if (typeof Plotly === 'undefined') return;
+
+            var plots = document.querySelectorAll('.chart-card > div');
+            for (var i = 0; i < plots.length; i++) {
+                if (plots[i].id) {
+                    try {
+                        Plotly.Plots.resize(plots[i].id);
+                        // Aplicar tema correcto al cargar
+                        updatePlotlyTheme();
+                    } catch(e) {}
+                }
+            }
+        }, 500);
+    };
+
+    window.addEventListener('resize', function() {
+        if (typeof Plotly !== 'undefined') {
+            var plots = document.querySelectorAll('.chart-card > div');
+            for (var i = 0; i < plots.length; i++) {
+                try {
+                    Plotly.Plots.resize(plots[i]);
+                } catch(e) {}
+            }
+        }
+    });
+
+    // Escuchar cambios de tema (si el admin de Django tiene toggle)
+    // Esto depende de cómo Django maneje el cambio, pero intentamos detectarlo
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            setTimeout(updatePlotlyTheme, 100);
+        });
+    }
+    // Observador para cambios en el atributo data-theme del HTML
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.attributeName === "data-theme") {
+                setTimeout(updatePlotlyTheme, 100);
+            }
+        });
+    });
+    observer.observe(document.documentElement, {attributes: true});
+
+</script>
+{% endblock %}
