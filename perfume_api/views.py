@@ -4,7 +4,6 @@ from django.template.loader import render_to_string
 import io
 import os
 import base64
-from xhtml2pdf import pisa
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
