@@ -37,7 +37,6 @@ class ProductoSerializer(serializers.ModelSerializer):
             "descripcion",
             "precio",
             "url_imagen",
-            "imagen",
             "stock",
             "genero",
             "created_at",
