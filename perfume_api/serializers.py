@@ -25,9 +25,8 @@ class TipoSerializer(serializers.ModelSerializer):
 
 # ---------- SERIALIZER PRODUCTO (Incluye nombres de marca y tipo) ----------
 class ProductoSerializer(serializers.ModelSerializer):
-    tipo_nombre = serializers.CharField(source="tipo.nombre", read_only=True)  # 🔹 Debe coincidir con el modelo
+    tipo_nombre = serializers.CharField(source="tipo.nombre", read_only=True)
     marca_nombre = serializers.CharField(source="marca.nombre", read_only=True)
-    url_imagen = serializers.SerializerMethodField()  # ✅ Método seguro
 
     class Meta:
         model = Producto
@@ -46,15 +45,6 @@ class ProductoSerializer(serializers.ModelSerializer):
             "tipo",
             "tipo_nombre",
         ]
-
-    def get_url_imagen(self, obj):
-        """Devuelve URL de imagen o None si no existe"""
-        if obj.imagen and hasattr(obj.imagen, 'url'):
-            request = self.context.get('request')
-            if request is not None:
-                return request.build_absolute_uri(obj.imagen.url)
-            return obj.imagen.url
-        return None
 
     def validate_precio(self, value):
         if value <= 0:
