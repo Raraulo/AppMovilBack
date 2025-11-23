@@ -2,6 +2,8 @@
 from datetime import datetime
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 import io
 import os
 import base64
@@ -15,6 +17,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.utils.crypto import get_random_string
 from django.conf import settings
+from weasyprint import HTML  # ✅ CAMBIO: WeasyPrint en lugar de xhtml2pdf
 
 from .models import Usuario, Marca, Tipo, Producto, Factura, DetalleFactura, Cliente, PasswordResetCode
 from .serializers import (
@@ -461,13 +464,9 @@ def generar_pdf_factura(factura):
 </html>
 """
         
-        # Generar PDF
+        # ✅ GENERAR PDF CON WEASYPRINT
         pdf_buffer = io.BytesIO()
-        pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
-        
-        if pisa_status.err:
-            print(f"❌ Error en pisa.CreatePDF: {pisa_status.err}")
-            return None
+        HTML(string=html_content).write_pdf(pdf_buffer)
         
         pdf_buffer.seek(0)
         return pdf_buffer.getvalue()
@@ -547,7 +546,7 @@ def procesar_venta(request):
         usuario_id = request.data.get('usuario_id')
         productos_data = request.data.get('productos', [])
         metodo_pago = request.data.get('metodo_pago', 'efectivo')
-        cliente_data = request.data.get('cliente', {})  # ✅ RECIBIR DATOS DEL CLIENTE
+        cliente_data = request.data.get('cliente', {})
         
         if not usuario_id:
             return Response({"error": "El usuario_id es requerido"}, status=status.HTTP_400_BAD_REQUEST)
@@ -567,8 +566,8 @@ def procesar_venta(request):
                 'nombre': cliente_data.get('nombre', 'Cliente'),
                 'apellido': cliente_data.get('apellido', usuario.email.split('@')[0]),
                 'cedula': cliente_data.get('cedula', str(usuario.id).zfill(10)),
-                'direccion': cliente_data.get('direccion', ''),  # ✅ NUEVO
-                'celular': cliente_data.get('celular', ''),      # ✅ NUEVO
+                'direccion': cliente_data.get('direccion', ''),
+                'celular': cliente_data.get('celular', ''),
                 'password': 'temp123',
                 'sexo': 'Hombre',
             }
@@ -682,7 +681,6 @@ def obtener_facturas_usuario(request, usuario_id):
                     'subtotal': float(detalle.subtotal),
                 })
             
-            # ✅ INCLUIR TODOS LOS DATOS DEL CLIENTE
             facturas_data.append({
                 'id': factura.id,
                 'numero_orden': f"ORD-{factura.id:06d}",
@@ -694,9 +692,9 @@ def obtener_facturas_usuario(request, usuario_id):
                     'nombre': cliente.nombre,
                     'apellido': cliente.apellido,
                     'email': cliente.email,
-                    'cedula': cliente.cedula if hasattr(cliente, 'cedula') else '',      # ✅ NUEVO
-                    'direccion': cliente.direccion if hasattr(cliente, 'direccion') else '',  # ✅ NUEVO
-                    'celular': cliente.celular if hasattr(cliente, 'celular') else '',        # ✅ NUEVO
+                    'cedula': cliente.cedula if hasattr(cliente, 'cedula') else '',
+                    'direccion': cliente.direccion if hasattr(cliente, 'direccion') else '',
+                    'celular': cliente.celular if hasattr(cliente, 'celular') else '',
                 }
             })
         
@@ -841,14 +839,9 @@ def password_reset_confirm(request):
         return Response({"message": f"Error al cambiar contraseña: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# perfume_api/views.py
-# ... (todo tu código anterior) ...
-
 # ======================================================
 # 🔹 ENDPOINT PARA VER PDF DESDE ADMIN
 # ======================================================
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
