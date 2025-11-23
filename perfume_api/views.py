@@ -1,5 +1,5 @@
 # perfume_api/views.py
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.http import HttpResponse
@@ -14,10 +14,13 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta
 from django.utils.crypto import get_random_string
 from django.conf import settings
-from weasyprint import HTML  # ✅ CAMBIO: WeasyPrint en lugar de xhtml2pdf
+
+# ✅ REPORTLAB para PDFs
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 
 from .models import Usuario, Marca, Tipo, Producto, Factura, DetalleFactura, Cliente, PasswordResetCode
 from .serializers import (
@@ -134,11 +137,12 @@ def update_cliente(request, pk):
 
 
 # ======================================================
-# 🔹 FUNCIÓN AUXILIAR: GENERAR PDF DE FACTURA CLÁSICO
+# 🔹 FUNCIÓN: GENERAR PDF CON REPORTLAB
 # ======================================================
+
 def generar_pdf_factura(factura):
     """
-    Genera un PDF de la factura con diseño clásico idéntico al frontend
+    Genera un PDF de la factura con ReportLab
     """
     try:
         detalles = DetalleFactura.objects.filter(factura=factura)
@@ -158,316 +162,124 @@ def generar_pdf_factura(factura):
         mes_texto = meses[factura.fecha.month]
         fecha_formateada = f"{factura.fecha.day} de {mes_texto}, {factura.fecha.year}"
         
-        # Convertir logo a base64
-        logo_base64 = ""
-        try:
-            logo_path = os.path.join(settings.MEDIA_ROOT, 'images', 'logomaison.png')
-            if os.path.exists(logo_path):
-                with open(logo_path, 'rb') as img_file:
-                    logo_base64 = base64.b64encode(img_file.read()).decode('utf-8')
-        except Exception as e:
-            print(f"⚠️ No se pudo cargar el logo: {e}")
+        # Crear PDF
+        pdf_buffer = io.BytesIO()
+        c = canvas.Canvas(pdf_buffer, pagesize=letter)
+        width, height = letter
         
-        # ✨ DISEÑO CLÁSICO IDÉNTICO AL FRONTEND
-        html_content = f"""
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Factura ORD-{factura.id:06d}</title>
-  <style>
-    * {{
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }}
-    body {{
-      font-family: 'Georgia', serif;
-      padding: 50px;
-      background: #fff;
-      color: #1a1a1a;
-    }}
-    .header {{
-      text-align: center;
-      margin-bottom: 40px;
-      border-bottom: 3px solid #000;
-      padding-bottom: 25px;
-    }}
-    .logo {{
-      font-size: 32px;
-      font-weight: bold;
-      margin-bottom: 8px;
-      letter-spacing: 3px;
-      color: #000;
-    }}
-    .logo-img {{
-      width: 200px;
-      height: auto;
-      margin-bottom: 10px;
-    }}
-    .subtitle {{
-      font-size: 14px;
-      color: #666;
-      font-style: italic;
-      letter-spacing: 1px;
-    }}
-    .info-section {{
-      display: table;
-      width: 100%;
-      margin-bottom: 35px;
-      padding: 20px;
-      background: #fafafa;
-      border-radius: 8px;
-    }}
-    .info-row {{
-      display: table-row;
-    }}
-    .info-box {{
-      display: table-cell;
-      width: 50%;
-      padding: 10px;
-      vertical-align: top;
-    }}
-    .info-box-right {{
-      text-align: right;
-    }}
-    .info-title {{
-      font-weight: bold;
-      font-size: 11px;
-      color: #666;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }}
-    .info-value {{
-      font-size: 15px;
-      color: #000;
-      line-height: 1.6;
-    }}
-    .info-value-small {{
-      font-size: 13px;
-      color: #666;
-      line-height: 1.6;
-    }}
-    .section-title {{
-      font-size: 18px;
-      font-weight: bold;
-      margin: 30px 0 20px 0;
-      padding-bottom: 10px;
-      border-bottom: 2px solid #000;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-    }}
-    table {{
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 35px;
-    }}
-    th {{
-      background: #000;
-      color: #fff;
-      padding: 15px;
-      text-align: left;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }}
-    td {{
-      padding: 15px;
-      border-bottom: 1px solid #e8e8e8;
-      font-size: 14px;
-    }}
-    tr:last-child td {{
-      border-bottom: none;
-    }}
-    .product-name {{
-      font-weight: bold;
-      color: #000;
-      margin-bottom: 4px;
-    }}
-    .product-details {{
-      font-size: 12px;
-      color: #666;
-    }}
-    .totals-section {{
-      margin-top: 30px;
-      padding: 25px;
-      background: #fafafa;
-      border-radius: 8px;
-    }}
-    .total-row {{
-      display: flex;
-      justify-content: space-between;
-      padding: 12px 0;
-      font-size: 15px;
-    }}
-    .total-label {{
-      font-weight: 600;
-      color: #333;
-    }}
-    .total-value {{
-      font-weight: 600;
-      color: #000;
-    }}
-    .final-total {{
-      border-top: 3px solid #000;
-      padding-top: 18px;
-      margin-top: 15px;
-      font-size: 20px;
-      font-weight: bold;
-    }}
-    .final-total .total-value {{
-      font-size: 24px;
-      color: #000;
-    }}
-    .footer {{
-      margin-top: 60px;
-      text-align: center;
-      font-size: 12px;
-      color: #666;
-      border-top: 1px solid #ddd;
-      padding-top: 25px;
-      line-height: 1.8;
-    }}
-    .footer-bold {{
-      font-weight: bold;
-      color: #000;
-      margin-top: 8px;
-    }}
-    .text-center {{
-      text-align: center;
-    }}
-    .text-right {{
-      text-align: right;
-    }}
-  </style>
-</head>
-<body>
-  <div class="header">
-    {"<img src='data:image/png;base64," + logo_base64 + "' class='logo-img' />" if logo_base64 else "<div class='logo'>MAISON DES SENTEURS</div>"}
-    <div class="subtitle">Perfumería de Lujo</div>
-  </div>
-
-  <div class="info-section">
-    <div class="info-row">
-      <div class="info-box">
-        <div class="info-title">Factura No.</div>
-        <div class="info-value">ORD-{factura.id:06d}</div>
-      </div>
-      <div class="info-box info-box-right">
-        <div class="info-title">Fecha de Emisión</div>
-        <div class="info-value">{fecha_formateada}</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="info-section">
-    <div class="info-row">
-      <div class="info-box">
-        <div class="info-title">Facturado a</div>
-        <div class="info-value">
-          {factura.cliente.nombre} {factura.cliente.apellido}
-        </div>
-"""
-
-        # ✅ AGREGAR DATOS COMPLETOS DEL CLIENTE SI EXISTEN
+        # Header
+        c.setFont("Helvetica-Bold", 24)
+        c.drawCentredString(width/2, height - 50, "MAISON DES SENTEURS")
+        c.setFont("Helvetica-Oblique", 12)
+        c.drawCentredString(width/2, height - 70, "Perfumería de Lujo")
+        
+        # Línea separadora
+        c.line(50, height - 90, width - 50, height - 90)
+        
+        # Información de factura
+        y = height - 130
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "Factura No:")
+        c.setFont("Helvetica", 12)
+        c.drawString(150, y, f"ORD-{factura.id:06d}")
+        
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(400, y, "Fecha:")
+        c.setFont("Helvetica", 12)
+        c.drawString(450, y, fecha_formateada)
+        
+        # Cliente
+        y -= 50
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "Cliente:")
+        c.setFont("Helvetica", 12)
+        c.drawString(110, y, f"{factura.cliente.nombre} {factura.cliente.apellido}")
+        
+        y -= 20
+        c.drawString(110, y, factura.cliente.email)
+        
         if factura.cliente.cedula:
-            html_content += f"""
-        <div class="info-value-small">CI: {factura.cliente.cedula}</div>
-"""
-        
-        html_content += f"""
-        <div class="info-value-small">{factura.cliente.email}</div>
-"""
+            y -= 20
+            c.drawString(110, y, f"CI: {factura.cliente.cedula}")
         
         if factura.cliente.celular:
-            html_content += f"""
-        <div class="info-value-small">Tel: {factura.cliente.celular}</div>
-"""
+            y -= 20
+            c.drawString(110, y, f"Tel: {factura.cliente.celular}")
         
         if factura.cliente.direccion:
-            html_content += f"""
-        <div class="info-value-small" style="margin-top: 8px;">{factura.cliente.direccion}</div>
-"""
-
+            y -= 20
+            c.drawString(110, y, f"Dir: {factura.cliente.direccion[:50]}")
+        
         # Método de pago
+        y -= 30
         metodo_pago_display = {
             'wawallet': 'WaWallet',
             'efectivo': 'Efectivo',
             'tarjeta': 'Tarjeta de Crédito'
         }.get(factura.metodo_pago, factura.metodo_pago.upper())
-
-        html_content += f"""
-      </div>
-      <div class="info-box info-box-right">
-        <div class="info-title">Método de Pago</div>
-        <div class="info-value">{metodo_pago_display}</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section-title">Detalle de Productos</div>
-
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 45%;">Producto</th>
-        <th style="width: 15%; text-align: center;">Cantidad</th>
-        <th style="width: 20%; text-align: right;">Precio Unit.</th>
-        <th style="width: 20%; text-align: right;">Subtotal</th>
-      </tr>
-    </thead>
-    <tbody>
-"""
-
-        # Agregar productos
+        
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(400, y, "Método de Pago:")
+        c.setFont("Helvetica", 12)
+        c.drawString(500, y, metodo_pago_display)
+        
+        # Tabla de productos
+        y -= 50
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "Detalle de Productos")
+        
+        y -= 30
+        # Headers de tabla
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(50, y, "Producto")
+        c.drawString(300, y, "Cantidad")
+        c.drawString(370, y, "Precio Unit.")
+        c.drawString(470, y, "Subtotal")
+        
+        # Línea bajo headers
+        c.line(50, y - 5, width - 50, y - 5)
+        
+        # Productos
+        y -= 25
+        c.setFont("Helvetica", 10)
         for detalle in detalles:
             producto = detalle.producto
-            html_content += f"""
-      <tr>
-        <td>
-          <div class="product-name">{producto.nombre}</div>
-          <div class="product-details">{producto.marca.nombre if producto.marca else 'Sin marca'} - {producto.tipo.nombre if producto.tipo else 'Sin tipo'}</div>
-        </td>
-        <td style="text-align: center;">{detalle.cantidad}</td>
-        <td style="text-align: right;">${detalle.precio_unitario:.2f}</td>
-        <td style="text-align: right; font-weight: 600;">${detalle.subtotal:.2f}</td>
-      </tr>
-"""
-
-        html_content += f"""
-    </tbody>
-  </table>
-
-  <div class="totals-section">
-    <div class="total-row">
-      <div class="total-label">Subtotal:</div>
-      <div class="total-value">${subtotal:.2f}</div>
-    </div>
-    <div class="total-row">
-      <div class="total-label">IVA (15%):</div>
-      <div class="total-value">${iva:.2f}</div>
-    </div>
-    <div class="total-row final-total">
-      <div class="total-label">TOTAL:</div>
-      <div class="total-value">${total:.2f}</div>
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>Gracias por su compra en Maison Des Senteurs</p>
-    <p class="footer-bold">Perfumería de Lujo</p>
-    <p style="margin-top: 12px;">Esta es una factura electrónica válida</p>
-  </div>
-</body>
-</html>
-"""
+            c.drawString(50, y, producto.nombre[:40])
+            c.drawString(300, y, str(detalle.cantidad))
+            c.drawString(370, y, f"${detalle.precio_unitario:.2f}")
+            c.drawString(470, y, f"${detalle.subtotal:.2f}")
+            y -= 20
+            
+            if y < 150:
+                c.showPage()
+                y = height - 100
+                c.setFont("Helvetica", 10)
         
-        # ✅ GENERAR PDF CON WEASYPRINT
-        pdf_buffer = io.BytesIO()
-        HTML(string=html_content).write_pdf(pdf_buffer)
+        # Totales
+        y -= 30
+        c.line(350, y, width - 50, y)
+        y -= 25
         
+        c.setFont("Helvetica", 12)
+        c.drawString(370, y, "Subtotal:")
+        c.drawString(470, y, f"${subtotal:.2f}")
+        
+        y -= 20
+        c.drawString(370, y, "IVA (15%):")
+        c.drawString(470, y, f"${iva:.2f}")
+        
+        y -= 20
+        c.line(350, y + 5, width - 50, y + 5)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(370, y - 10, "TOTAL:")
+        c.drawString(470, y - 10, f"${total:.2f}")
+        
+        # Footer
+        c.setFont("Helvetica-Oblique", 10)
+        c.drawCentredString(width/2, 50, "Gracias por su compra en Maison Des Senteurs")
+        c.drawCentredString(width/2, 35, "Perfumería de Lujo")
+        
+        c.save()
         pdf_buffer.seek(0)
         return pdf_buffer.getvalue()
         
@@ -559,7 +371,6 @@ def procesar_venta(request):
         except Usuario.DoesNotExist:
             return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
         
-        # ✅ CREAR O ACTUALIZAR CLIENTE CON TODOS LOS DATOS
         cliente, created = Cliente.objects.update_or_create(
             email=cliente_data.get('email', usuario.email),
             defaults={
@@ -852,7 +663,6 @@ def admin_factura_pdf(request, factura_id):
     try:
         factura = get_object_or_404(Factura, id=factura_id)
         
-        # Generar PDF
         pdf_content = generar_pdf_factura(factura)
         
         if not pdf_content:
@@ -861,7 +671,6 @@ def admin_factura_pdf(request, factura_id):
                 status=500
             )
         
-        # Devolver PDF para visualización en navegador
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="Factura_ORD-{factura.id:06d}.pdf"'
         
