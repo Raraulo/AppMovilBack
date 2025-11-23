@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import Usuario, Marca, Tipo, Producto, Cliente, Factura, DetalleFactura
 
+
 # ---------- SERIALIZERS USUARIO ----------
 class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,6 +27,7 @@ class TipoSerializer(serializers.ModelSerializer):
 class ProductoSerializer(serializers.ModelSerializer):
     tipo_nombre = serializers.CharField(source="tipo.nombre", read_only=True)  # 🔹 Debe coincidir con el modelo
     marca_nombre = serializers.CharField(source="marca.nombre", read_only=True)
+    url_imagen = serializers.SerializerMethodField()  # ✅ Método seguro
 
     class Meta:
         model = Producto
@@ -45,6 +47,15 @@ class ProductoSerializer(serializers.ModelSerializer):
             "tipo",
             "tipo_nombre",
         ]
+
+    def get_url_imagen(self, obj):
+        """Devuelve URL de imagen o None si no existe"""
+        if obj.imagen and hasattr(obj.imagen, 'url'):
+            request = self.context.get('request')
+            if request is not None:
+                return request.build_absolute_uri(obj.imagen.url)
+            return obj.imagen.url
+        return None
 
     def validate_precio(self, value):
         if value <= 0:
