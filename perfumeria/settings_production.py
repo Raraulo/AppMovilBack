@@ -8,9 +8,9 @@ DEBUG = False
 SECRET_KEY = os.environ.get('SECRET_KEY', SECRET_KEY)
 
 # Hosts permitidos
-ALLOWED_HOSTS = ['*']  # Railway configurará esto
+ALLOWED_HOSTS = ['*']
 
-# Base de datos PostgreSQL (Railway)
+# ✅ Base de datos PostgreSQL (Railway)
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
@@ -23,7 +23,7 @@ DATABASES = {
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Agregar WhiteNoise al middleware (justo después de SecurityMiddleware)
+# Agregar WhiteNoise al middleware
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 # CORS
@@ -35,6 +35,6 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.up.railway.app',
 ]
 
-# Media files en Railway
+# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
