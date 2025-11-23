@@ -51,7 +51,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 # =========================
-# 🔹 REGISTRO CON CÓDIGO
+# 🔹 REGISTRO - MODO DESARROLLO (SIN VALIDACIÓN DE EMAIL)
 # =========================
 codes = {}
 
@@ -59,7 +59,7 @@ codes = {}
 @csrf_exempt
 def send_code(request):
     """
-    📧 Envía código de verificación
+    📧 [MODO DEV] Registra email sin enviar código
     POST /api/auth/send-code/
     Body: {"email": "usuario@example.com"}
     """
@@ -71,30 +71,34 @@ def send_code(request):
             if not email:
                 return JsonResponse({"message": "Correo requerido"}, status=400)
 
-            # Generar código de 6 dígitos
-            code = str(random.randint(100000, 999999))
+            # ✅ MODO DESARROLLO: Auto-aprobar sin enviar email
+            code = "000000"  # Código fijo para desarrollo
             codes[email] = {"code": code, "timestamp": timezone.now()}
 
-            print(f"📧 Código generado para {email}: {code}")
+            print(f"✅ [MODO DEV] Email registrado: {email} (sin envío de correo)")
 
-            # ✅ ENVIAR EMAIL EN SEGUNDO PLANO (NO BLOQUEA LA RESPUESTA)
-            def send_email_async():
-                try:
-                    send_mail(
-                        subject="Código de verificación - Maison Des Senteurs",
-                        message=f"Tu código de verificación es: {code}\n\nEste código expira en 10 minutos.\n\n-- Maison Des Parfums",
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[email],
-                        fail_silently=False,
-                    )
-                    print(f"✅ Email enviado exitosamente a {email}")
-                except Exception as e:
-                    print(f"❌ Error enviando email a {email}: {e}")
+            # ❌ COMENTADO: Generar código aleatorio
+            # code = str(random.randint(100000, 999999))
+            # codes[email] = {"code": code, "timestamp": timezone.now()}
+            # print(f"📧 Código generado para {email}: {code}")
 
-            # Iniciar thread para enviar el email en segundo plano
-            Thread(target=send_email_async, daemon=True).start()
+            # ❌ COMENTADO: ENVIAR EMAIL EN SEGUNDO PLANO
+            # def send_email_async():
+            #     try:
+            #         send_mail(
+            #             subject="Código de verificación - Maison Des Senteurs",
+            #             message=f"Tu código de verificación es: {code}\n\nEste código expira en 10 minutos.\n\n-- Maison Des Parfums",
+            #             from_email=settings.DEFAULT_FROM_EMAIL,
+            #             recipient_list=[email],
+            #             fail_silently=False,
+            #         )
+            #         print(f"✅ Email enviado exitosamente a {email}")
+            #     except Exception as e:
+            #         print(f"❌ Error enviando email a {email}: {e}")
+            # 
+            # Thread(target=send_email_async, daemon=True).start()
 
-            # ✅ RESPONDER INMEDIATAMENTE (sin esperar al email)
+            # ✅ RESPONDER INMEDIATAMENTE
             return JsonResponse({
                 "message": "Código enviado correctamente",
                 "email": email
@@ -110,7 +114,7 @@ def send_code(request):
 @csrf_exempt
 def verify_code(request):
     """
-    ✅ Verifica código de verificación
+    ✅ [MODO DEV] Verifica email sin validar código real
     POST /api/auth/verify-code/
     Body: {"email": "usuario@example.com", "code": "123456"}
     """
@@ -120,36 +124,38 @@ def verify_code(request):
             email = data.get("email", "").strip().lower()
             code = data.get("code", "").strip()
 
-            if not email or not code:
+            if not email:
                 return JsonResponse(
-                    {"message": "Email y código son requeridos"}, 
+                    {"message": "Email es requerido"}, 
                     status=400
                 )
 
-            # Verificar que existe el código
-            if email not in codes:
-                return JsonResponse(
-                    {"message": "No se encontró código para este email"}, 
-                    status=404
-                )
+            # ✅ MODO DESARROLLO: Aprobar automáticamente
+            print(f"✅ [MODO DEV] Código verificado automáticamente para {email}")
 
-            # Verificar que el código coincida
-            if codes[email]["code"] != code:
-                return JsonResponse(
-                    {"message": "Código inválido"}, 
-                    status=400
-                )
-
-            # Verificar que no haya expirado (10 minutos)
-            timestamp = codes[email]["timestamp"]
-            if (timezone.now() - timestamp).seconds > 600:
-                del codes[email]
-                return JsonResponse(
-                    {"message": "Código expirado"}, 
-                    status=400
-                )
-
-            print(f"✅ Código verificado para {email}")
+            # ❌ COMENTADO: Validación de código real
+            # if not code:
+            #     return JsonResponse({"message": "Código es requerido"}, status=400)
+            # 
+            # if email not in codes:
+            #     return JsonResponse(
+            #         {"message": "No se encontró código para este email"}, 
+            #         status=404
+            #     )
+            # 
+            # if codes[email]["code"] != code:
+            #     return JsonResponse(
+            #         {"message": "Código inválido"}, 
+            #         status=400
+            #     )
+            # 
+            # timestamp = codes[email]["timestamp"]
+            # if (timezone.now() - timestamp).seconds > 600:
+            #     del codes[email]
+            #     return JsonResponse(
+            #         {"message": "Código expirado"}, 
+            #         status=400
+            #     )
 
             # ✅ Buscar si ya existe el cliente
             try:
@@ -182,7 +188,7 @@ def verify_code(request):
 @csrf_exempt
 def create_cliente(request):
     """
-    👤 Crea nuevo cliente
+    👤 [MODO DEV] Crea cliente sin validar código
     POST /api/auth/create-cliente/
     Body: {
         "email": "usuario@example.com",
@@ -200,12 +206,12 @@ def create_cliente(request):
             data = json.loads(request.body)
             email = data.get("email", "").strip().lower()
 
-            # Verificar que el código fue validado
-            if email not in codes:
-                return JsonResponse(
-                    {"message": "Código no verificado. Verifica el código primero."}, 
-                    status=400
-                )
+            # ❌ COMENTADO: Validación de código
+            # if email not in codes:
+            #     return JsonResponse(
+            #         {"message": "Código no verificado. Verifica el código primero."}, 
+            #         status=400
+            #     )
 
             # Verificar si el usuario ya existe
             if Usuario.objects.filter(email=email).exists():
@@ -238,8 +244,9 @@ def create_cliente(request):
 
             print(f"✅ Cliente creado: {cliente.nombre} {cliente.apellido}")
 
-            # Eliminar código usado
-            del codes[email]
+            # ❌ COMENTADO: Eliminar código usado
+            # if email in codes:
+            #     del codes[email]
 
             return JsonResponse({
                 "message": "Cliente creado exitosamente",
