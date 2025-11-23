@@ -3,20 +3,25 @@ from pathlib import Path
 import os
 from datetime import timedelta
 
+
 # 📂 BASE_DIR: Carpeta raíz del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 # 🔑 Llave secreta (NO usar esta en producción)
 SECRET_KEY = 'django-insecure-b*o&%slu&o6s2ojwv--zt%71_h%wp+@i&jhf!!@yhx=8=322fh'
 
+
 # ⚠️ En producción, pon DEBUG = False
 DEBUG = True
+
 
 # 🌍 Permitir todas las IPs en desarrollo
 ALLOWED_HOSTS = [
     "*",
     'suanne-unamortized-denae.ngrok-free.dev'
 ]
+
 
 # 📦 Aplicaciones instaladas
 INSTALLED_APPS = [
@@ -27,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
 
     # Apps adicionales
     'rest_framework',
@@ -39,10 +45,12 @@ INSTALLED_APPS = [
     'perfume_api',
 ]
 
+
 # 🔹 Middleware
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # ✅ Para servir archivos estáticos
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -51,7 +59,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+
 ROOT_URLCONF = 'perfumeria.urls'
+
 
 # 🎨 Configuración de plantillas
 TEMPLATES = [
@@ -73,7 +83,9 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = 'perfumeria.wsgi.application'
+
 
 # 📦 Configuración de la base de datos MySQL
 DATABASES = {
@@ -90,11 +102,14 @@ DATABASES = {
     }
 }
 
+
 # 🔐 Modelo de usuario personalizado
 AUTH_USER_MODEL = 'perfume_api.Usuario'
 
+
 # 🌍 CORS (para React Native / Expo)
 CORS_ALLOW_ALL_ORIGINS = True
+
 
 # 🔑 CONFIGURACIÓN CSRF PARA NGROK
 CSRF_TRUSTED_ORIGINS = [
@@ -103,27 +118,34 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok-free.dev'
 ]
 
+
 # 🌎 Configuración de idioma y zona horaria
 LANGUAGE_CODE = 'es'
 TIME_ZONE = 'America/Guayaquil'
 USE_I18N = True
 USE_TZ = False
 
+
 # 📂 Archivos estáticos
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 
 # ✅ SOLO incluir directorios que existan
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
+
 # 📂 Archivos multimedia
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+
 # 🔑 Campo por defecto para IDs automáticas
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 
 # ⚙️ Configuración de Django REST Framework con JWT
 REST_FRAMEWORK = {
@@ -140,6 +162,7 @@ REST_FRAMEWORK = {
     ]
 }
 
+
 # ⏱️ Configuración de JWT (Simple JWT)
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
@@ -151,13 +174,18 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# 📧 Configuración de Email (para enviar códigos)
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
+
+# ===== 📧 EMAIL CONFIGURATION (SendGrid) =====
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "maisondeparfumsprofesional@gmail.com"
-EMAIL_HOST_PASSWORD = "tdlj byrx fnbo htcv"
+EMAIL_HOST_USER = 'apikey'  # ✅ Siempre "apikey"
+EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@maisondessenteurs.com')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+EMAIL_TIMEOUT = 30
+
 
 # 🔐 Backends de autenticación
 AUTHENTICATION_BACKENDS = [
