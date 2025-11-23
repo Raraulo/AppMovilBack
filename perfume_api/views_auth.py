@@ -1,6 +1,8 @@
 # perfume_api/views_auth.py
 import random
 import json
+from threading import Thread
+from django.conf import settings
 from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.utils import timezone
@@ -64,7 +66,7 @@ def send_code(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            email = data.get("email")
+            email = data.get("email", "").strip().lower()
 
             if not email:
                 return JsonResponse({"message": "Correo requerido"}, status=400)
@@ -75,19 +77,31 @@ def send_code(request):
 
             print(f"📧 Código generado para {email}: {code}")
 
-            # Enviar email
-            send_mail(
-                subject="Código de verificación - Maison Des Senteurs",
-                message=f"Tu código de verificación es: {code}\n\nEste código expira en 10 minutos.",
-                from_email="maisondeparfumsprofesional@gmail.com",
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            
-            return JsonResponse({"message": "Código enviado exitosamente"}, status=200)
+            # ✅ ENVIAR EMAIL EN SEGUNDO PLANO (NO BLOQUEA LA RESPUESTA)
+            def send_email_async():
+                try:
+                    send_mail(
+                        subject="Código de verificación - Maison Des Senteurs",
+                        message=f"Tu código de verificación es: {code}\n\nEste código expira en 10 minutos.\n\n-- Maison Des Parfums",
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[email],
+                        fail_silently=False,
+                    )
+                    print(f"✅ Email enviado exitosamente a {email}")
+                except Exception as e:
+                    print(f"❌ Error enviando email a {email}: {e}")
+
+            # Iniciar thread para enviar el email en segundo plano
+            Thread(target=send_email_async, daemon=True).start()
+
+            # ✅ RESPONDER INMEDIATAMENTE (sin esperar al email)
+            return JsonResponse({
+                "message": "Código enviado correctamente",
+                "email": email
+            }, status=200)
             
         except Exception as e:
-            print(f"❌ Error enviando código: {str(e)}")
+            print(f"❌ Error generando código: {str(e)}")
             return JsonResponse({"message": f"Error: {str(e)}"}, status=500)
 
     return JsonResponse({"message": "Método no permitido"}, status=405)
@@ -103,8 +117,8 @@ def verify_code(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            email = data.get("email")
-            code = data.get("code")
+            email = data.get("email", "").strip().lower()
+            code = data.get("code", "").strip()
 
             if not email or not code:
                 return JsonResponse(
@@ -184,7 +198,7 @@ def create_cliente(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            email = data.get("email")
+            email = data.get("email", "").strip().lower()
 
             # Verificar que el código fue validado
             if email not in codes:
