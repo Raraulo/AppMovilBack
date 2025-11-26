@@ -174,14 +174,14 @@ SIMPLE_JWT = {
 }
 
 
-# ===== 📧 EMAIL CONFIGURATION (SendGrid) =====
+# ===== 📧 EMAIL CONFIGURATION (Gmail para Railway) ===== 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.sendgrid.net'
+EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'apikey'  # ✅ Siempre "apikey"
-EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'maisondeparfumsprofesional@gmail.com')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'maisondeparfumsprofesional@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_HOST_USER', 'maisondeparfumsprofesional@gmail.com')
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_TIMEOUT = 30
 

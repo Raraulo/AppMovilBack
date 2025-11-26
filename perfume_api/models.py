@@ -3,6 +3,8 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils import timezone
 from datetime import timedelta
+import random
+
 
 # Define los roles para evitar repetición
 ROLES = [
@@ -10,6 +12,7 @@ ROLES = [
     ('empleado', 'Empleado'),
     ('cliente', 'Cliente'),
 ]
+
 
 # ----------- MANAGER PERSONALIZADO -----------
 class UsuarioManager(BaseUserManager):
@@ -22,10 +25,12 @@ class UsuarioManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
+
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("rol", "admin")
+
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -33,6 +38,7 @@ class UsuarioManager(BaseUserManager):
             raise ValueError("Superuser must have is_superuser=True.")
             
         return self.create_user(email, password, **extra_fields)
+
 
 # ----------- MODELO USUARIO PERSONALIZADO -----------
 class Usuario(AbstractUser):
@@ -52,13 +58,17 @@ class Usuario(AbstractUser):
         default='cliente'
     )
 
+
     USERNAME_FIELD = "email"  # 🔹 Ahora el login será con email
     REQUIRED_FIELDS = ['nombre', 'apellido'] # 🔹 Pedirá nombre y apellido al crear superusuario
 
+
     objects = UsuarioManager()  # ✅ Usar nuestro manager personalizado
+
 
     def __str__(self):
         return f"{self.email} - {self.rol}"
+
 
 # ---------- MARCAS ----------
 class Marca(models.Model):
@@ -67,8 +77,10 @@ class Marca(models.Model):
     # 🌟 CAMPO AÑADIDO PARA EL ADMIN
     descripcion = models.TextField(blank=True, null=True) 
 
+
     def __str__(self):
         return self.nombre
+
 
 # ---------- TIPOS ----------
 class Tipo(models.Model):
@@ -76,8 +88,10 @@ class Tipo(models.Model):
     # 🌟 CAMPO AÑADIDO PARA EL ADMIN
     descripcion = models.TextField(blank=True, null=True)
 
+
     def __str__(self):
         return self.nombre
+
 
 # ---------- PRODUCTOS ----------
 class Producto(models.Model):
@@ -99,8 +113,10 @@ class Producto(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
     def __str__(self):
         return self.nombre
+
 
 # ---------- CLIENTES ----------
 class Cliente(models.Model):
@@ -121,8 +137,10 @@ class Cliente(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
     def __str__(self):
         return f"{self.nombre} {self.apellido} - {self.email}"
+
 
 # ---------- FACTURAS ----------
 class Factura(models.Model):
@@ -148,6 +166,7 @@ class Factura(models.Model):
     def __str__(self):
         return f"Factura #{self.id} - {self.cliente.nombre} {self.cliente.apellido}"
 
+
 # ---------- DETALLE FACTURA ----------
 class DetalleFactura(models.Model):
     factura = models.ForeignKey(Factura, on_delete=models.CASCADE)
@@ -156,26 +175,62 @@ class DetalleFactura(models.Model):
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
 
+
     class Meta:
         verbose_name_plural = "Detalles de Factura"
         
     def __str__(self):
         return f"Detalle #{self.id} - Factura #{self.factura.id}"
 
-# ---------- EMAIL VERIFICATION ----------
+
+# ---------- EMAIL VERIFICATION CODE (ANTIGUO) ----------
 class EmailVerificationCode(models.Model):
     email = models.EmailField()
     code = models.CharField(max_length=5)
     created_at = models.DateTimeField(auto_now_add=True)
 
+
     def is_expired(self):
         # 💡 Usamos la función timedelta definida localmente para no reimportar.
         return timezone.now() > self.created_at + timedelta(minutes=10)
 
+
     def __str__(self):
         return f"{self.email} - {self.code}"
 
-# ---------- ✅ PASSWORD RESET CODE (NUEVO) ----------
+
+# ---------- ✅ EMAIL VERIFICATION (NUEVO - PARA REGISTRO) ----------
+class EmailVerification(models.Model):
+    """
+    🔐 Modelo para verificación de email durante el registro
+    """
+    email = models.EmailField(verbose_name="Email")
+    code = models.CharField(max_length=6, verbose_name="Código")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha creación")
+    is_verified = models.BooleanField(default=False, verbose_name="Verificado")
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Verificación de Email"
+        verbose_name_plural = "Verificaciones de Email"
+        db_table = 'email_verifications'
+    
+    def __str__(self):
+        status = "Verificado" if self.is_verified else "Pendiente"
+        return f"{self.email} - {self.code} ({status})"
+    
+    def is_expired(self):
+        """Verifica si el código expiró (10 minutos)"""
+        expiration_time = self.created_at + timedelta(minutes=10)
+        return timezone.now() > expiration_time
+    
+    @staticmethod
+    def generate_code():
+        """Genera un código aleatorio de 6 dígitos"""
+        return str(random.randint(100000, 999999))
+
+
+# ---------- ✅ PASSWORD RESET CODE ----------
 class PasswordResetCode(models.Model):
     """
     🔐 Modelo para códigos de recuperación de contraseña

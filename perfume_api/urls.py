@@ -20,9 +20,12 @@ from .views import (
     password_reset_verify,
     password_reset_confirm,
     admin_factura_pdf,
+    send_verification_code,  # ✅ NUEVO
+    verify_email_code,       # ✅ NUEVO
 )
 from . import views_auth
 from . import dashboard_views  # ✅ IMPORTAR DASHBOARD
+
 
 # ==================== ROUTER CON VIEWSETS ====================
 router = routers.DefaultRouter()
@@ -33,6 +36,7 @@ router.register("productos", ProductoViewSet)
 router.register("facturas", FacturaViewSet)
 router.register("detalles", DetalleFacturaViewSet)
 router.register("clientes", ClienteViewSet)
+
 
 # ==================== URLS PRINCIPALES ====================
 urlpatterns = [
@@ -50,6 +54,10 @@ urlpatterns = [
     # ==================== FAVORITOS Y CARRITO ====================
     path("favoritos/agregar/", agregar_a_favoritos, name="agregar_a_favoritos"),
     path("carrito/agregar/", agregar_a_carrito, name="agregar_a_carrito"),
+    
+    # ==================== VERIFICACIÓN DE EMAIL (NUEVO REGISTRO) ✅ NUEVO ====================
+    path("auth/send-verification-code/", send_verification_code, name="send_verification_code"),
+    path("auth/verify-email-code/", verify_email_code, name="verify_email_code"),
     
     # ==================== AUTENTICACIÓN CON CÓDIGO ====================
     path("auth/send-code/", views_auth.send_code, name="send_code"),

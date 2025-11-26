@@ -1,11 +1,12 @@
 # perfume_api/views.py
 from datetime import datetime, timedelta
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMessage, send_mail
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 import io
 import os
+import re
 import base64
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
@@ -17,12 +18,24 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.conf import settings
 
+
 # ✅ REPORTLAB para PDFs
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
-from .models import Usuario, Marca, Tipo, Producto, Factura, DetalleFactura, Cliente, PasswordResetCode
+
+from .models import (
+    Usuario, 
+    Marca, 
+    Tipo, 
+    Producto, 
+    Factura, 
+    DetalleFactura, 
+    Cliente, 
+    PasswordResetCode,
+    EmailVerification  # ✅ NUEVO
+)
 from .serializers import (
     UsuarioSerializer,
     MarcaSerializer,
@@ -37,6 +50,7 @@ from .serializers import (
 # ======================================================
 # 🔹 VIEWSETS - CRUD Automático
 # ======================================================
+
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
@@ -80,8 +94,127 @@ class ClienteViewSet(viewsets.ModelViewSet):
 
 
 # ======================================================
+# ✅ ENDPOINTS DE VERIFICACIÓN DE EMAIL (NUEVOS)
+# ======================================================
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_verification_code(request):
+    """
+    📧 Envía un código de verificación al email del usuario
+    """
+    email = request.data.get('email', '').lower().strip()
+    
+    if not email:
+        return Response({
+            'message': 'Email requerido'
+        }, status=400)
+    
+    # Validar formato de email
+    email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+    if not re.match(email_regex, email):
+        return Response({
+            'message': 'Formato de email inválido'
+        }, status=400)
+    
+    # Verificar si el email ya está registrado
+    if Cliente.objects.filter(email=email).exists():
+        return Response({
+            'message': 'Este correo ya está registrado. Inicia sesión',
+            'exists': True
+        }, status=400)
+    
+    # Generar código de 6 dígitos
+    code = EmailVerification.generate_code()
+    
+    # Eliminar códigos previos del mismo email
+    EmailVerification.objects.filter(email=email).delete()
+    
+    # Crear nuevo registro de verificación
+    EmailVerification.objects.create(email=email, code=code)
+    
+    # Enviar email con el código
+    try:
+        send_mail(
+            subject='Código de verificación - Maison de Parfums',
+            message=f'''Hola,
+
+Tu código de verificación es: {code}
+
+Este código expira en 10 minutos.
+
+Si no solicitaste este código, ignora este mensaje.
+
+Saludos,
+Maison de Parfums''',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        
+        return Response({
+            'message': 'Código enviado correctamente',
+            'exists': False
+        }, status=200)
+        
+    except Exception as e:
+        print(f"❌ Error enviando email: {str(e)}")
+        return Response({
+            'message': f'Error al enviar email: {str(e)}'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_email_code(request):
+    """
+    ✅ Verifica el código de verificación ingresado por el usuario
+    """
+    email = request.data.get('email', '').lower().strip()
+    code = request.data.get('code', '').strip()
+    
+    if not email or not code:
+        return Response({
+            'message': 'Email y código son requeridos',
+            'verified': False
+        }, status=400)
+    
+    try:
+        # Buscar el código más reciente para este email
+        verification = EmailVerification.objects.filter(
+            email=email,
+            code=code,
+            is_verified=False
+        ).latest('created_at')
+        
+        # Verificar si el código expiró
+        if verification.is_expired():
+            return Response({
+                'message': 'El código ha expirado. Solicita uno nuevo',
+                'verified': False
+            }, status=400)
+        
+        # Marcar como verificado
+        verification.is_verified = True
+        verification.save()
+        
+        return Response({
+            'message': 'Email verificado correctamente',
+            'verified': True
+        }, status=200)
+        
+    except EmailVerification.DoesNotExist:
+        return Response({
+            'message': 'Código inválido o ya utilizado',
+            'verified': False
+        }, status=400)
+
+
+# ======================================================
 # 🔹 ENDPOINTS PERSONALIZADOS
 # ======================================================
+
 
 @api_view(["GET"])
 def productos_por_marca(request, marca_id):
@@ -139,6 +272,7 @@ def update_cliente(request, pk):
 # ======================================================
 # 🔹 FUNCIÓN: GENERAR PDF CON REPORTLAB
 # ======================================================
+
 
 def generar_pdf_factura(factura):
     """
@@ -350,6 +484,7 @@ Perfumería de Lujo
 # 🔹 ENDPOINT PARA PROCESAR VENTAS
 # ======================================================
 
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @transaction.atomic
@@ -459,6 +594,7 @@ def procesar_venta(request):
 # 🔹 ENDPOINT PARA OBTENER FACTURAS DEL USUARIO
 # ======================================================
 
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def obtener_facturas_usuario(request, usuario_id):
@@ -519,6 +655,7 @@ def obtener_facturas_usuario(request, usuario_id):
 # ======================================================
 # 🔹 ENDPOINTS DE RECUPERACIÓN DE CONTRASEÑA
 # ======================================================
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -653,6 +790,7 @@ def password_reset_confirm(request):
 # ======================================================
 # 🔹 ENDPOINT PARA VER PDF DESDE ADMIN
 # ======================================================
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
