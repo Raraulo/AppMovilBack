@@ -174,11 +174,12 @@ SIMPLE_JWT = {
 }
 
 
-# ===== 📧 EMAIL CONFIGURATION (Gmail para Railway) ===== 
+# ===== 📧 EMAIL CONFIGURATION (Gmail con SSL) ===== 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_PORT = 465  # ✅ Puerto SSL
+EMAIL_USE_SSL = True  # ✅ Usar SSL en lugar de TLS
+EMAIL_USE_TLS = False  # ✅ Desactivar TLS
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'maisondeparfumsprofesional@gmail.com')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_HOST_USER', 'maisondeparfumsprofesional@gmail.com')
