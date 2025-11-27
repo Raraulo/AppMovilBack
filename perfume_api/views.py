@@ -1,6 +1,6 @@
 # perfume_api/views.py
 from datetime import datetime, timedelta
-from django.core.mail import EmailMessage, send_mail
+from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -8,6 +8,7 @@ import io
 import os
 import re
 import base64
+import resend  # ✅ NUEVO
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -18,12 +19,13 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.conf import settings
 
+# ✅ Configurar Resend API Key
+resend.api_key = os.environ.get('RESEND_API_KEY', '')
 
 # ✅ REPORTLAB para PDFs
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-
 
 from .models import (
     Usuario, 
@@ -34,7 +36,7 @@ from .models import (
     DetalleFactura, 
     Cliente, 
     PasswordResetCode,
-    EmailVerification  # ✅ NUEVO
+    EmailVerification
 )
 from .serializers import (
     UsuarioSerializer,
@@ -46,41 +48,33 @@ from .serializers import (
     ClienteSerializer,
 )
 
-
 # ======================================================
 # 🔹 VIEWSETS - CRUD Automático
 # ======================================================
-
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
 
-
 class MarcaViewSet(viewsets.ModelViewSet):
     queryset = Marca.objects.all()
     serializer_class = MarcaSerializer
-
 
 class TipoViewSet(viewsets.ModelViewSet):
     queryset = Tipo.objects.all()
     serializer_class = TipoSerializer
 
-
 class ProductoViewSet(viewsets.ModelViewSet):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
-
 
 class FacturaViewSet(viewsets.ModelViewSet):
     queryset = Factura.objects.all()
     serializer_class = FacturaSerializer
 
-
 class DetalleFacturaViewSet(viewsets.ModelViewSet):
     queryset = DetalleFactura.objects.all()
     serializer_class = DetalleFacturaSerializer
-
 
 class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
@@ -92,17 +86,15 @@ class ClienteViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
 
-
 # ======================================================
-# ✅ ENDPOINTS DE VERIFICACIÓN DE EMAIL (NUEVOS)
+# ✅ ENDPOINTS DE VERIFICACIÓN DE EMAIL CON RESEND API
 # ======================================================
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def send_verification_code(request):
     """
-    📧 Envía un código de verificación al email del usuario
+    📧 Envía un código de verificación al email del usuario usando Resend API
     """
     email = request.data.get('email', '').lower().strip()
     
@@ -134,24 +126,31 @@ def send_verification_code(request):
     # Crear nuevo registro de verificación
     EmailVerification.objects.create(email=email, code=code)
     
-    # Enviar email con el código
+    # Enviar email con Resend API
     try:
-        send_mail(
-            subject='Código de verificación - Maison de Parfums',
-            message=f'''Hola,
-
-Tu código de verificación es: {code}
-
-Este código expira en 10 minutos.
-
-Si no solicitaste este código, ignora este mensaje.
-
-Saludos,
-Maison de Parfums''',
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
-        )
+        params = {
+            "from": "Maison de Parfums <onboarding@resend.dev>",
+            "to": [email],
+            "subject": "Código de verificación - Maison de Parfums",
+            "html": f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #333; text-align: center;">Código de verificación</h2>
+                    <p style="color: #666;">Hola,</p>
+                    <p style="color: #666;">Tu código de verificación es:</p>
+                    <div style="background-color: #f5f5f5; padding: 30px; text-align: center; margin: 30px 0; border-radius: 10px;">
+                        <h1 style="color: #000; font-size: 42px; letter-spacing: 10px; margin: 0; font-weight: bold;">{code}</h1>
+                    </div>
+                    <p style="color: #666;">Este código expira en <strong>10 minutos</strong>.</p>
+                    <p style="color: #666;">Si no solicitaste este código, ignora este mensaje.</p>
+                    <br>
+                    <p style="color: #666;">Saludos,<br><strong>Maison de Parfums</strong></p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                    <p style="color: #999; font-size: 12px; text-align: center;">Perfumería de Lujo</p>
+                </div>
+            """
+        }
+        
+        resend.Emails.send(params)
         
         return Response({
             'message': 'Código enviado correctamente',
@@ -163,7 +162,6 @@ Maison de Parfums''',
         return Response({
             'message': f'Error al enviar email: {str(e)}'
         }, status=500)
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -210,11 +208,9 @@ def verify_email_code(request):
             'verified': False
         }, status=400)
 
-
 # ======================================================
 # 🔹 ENDPOINTS PERSONALIZADOS
 # ======================================================
-
 
 @api_view(["GET"])
 def productos_por_marca(request, marca_id):
@@ -222,20 +218,17 @@ def productos_por_marca(request, marca_id):
     serializer = ProductoSerializer(productos, many=True)
     return Response(serializer.data)
 
-
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def agregar_a_favoritos(request):
     producto_id = request.data.get("producto_id")
     return Response({"mensaje": f"Producto {producto_id} añadido a favoritos"})
 
-
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def agregar_a_carrito(request):
     producto_id = request.data.get("producto_id")
     return Response({"mensaje": f"Producto {producto_id} añadido al carrito"})
-
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -246,7 +239,6 @@ def get_cliente(request, pk):
         return Response({"message": "Cliente no encontrado"}, status=status.HTTP_404_NOT_FOUND)
     serializer = ClienteSerializer(cliente)
     return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
@@ -268,11 +260,9 @@ def update_cliente(request, pk):
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 # ======================================================
 # 🔹 FUNCIÓN: GENERAR PDF CON REPORTLAB
 # ======================================================
-
 
 def generar_pdf_factura(factura):
     """
@@ -423,7 +413,6 @@ def generar_pdf_factura(factura):
         traceback.print_exc()
         return None
 
-
 def enviar_factura_por_email(factura):
     """
     Envía la factura por correo electrónico al cliente
@@ -479,11 +468,9 @@ Perfumería de Lujo
         traceback.print_exc()
         return False
 
-
 # ======================================================
 # 🔹 ENDPOINT PARA PROCESAR VENTAS
 # ======================================================
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -589,11 +576,9 @@ def procesar_venta(request):
         traceback.print_exc()
         return Response({"error": f"Error al procesar la venta: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 # ======================================================
 # 🔹 ENDPOINT PARA OBTENER FACTURAS DEL USUARIO
 # ======================================================
-
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -651,11 +636,9 @@ def obtener_facturas_usuario(request, usuario_id):
         print(f"❌ Error: {str(e)}")
         return Response({"error": f"Error al obtener facturas: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 # ======================================================
 # 🔹 ENDPOINTS DE RECUPERACIÓN DE CONTRASEÑA
 # ======================================================
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -714,7 +697,6 @@ Maison Des Senteurs
     except Exception as e:
         return Response({"message": f"Error al procesar solicitud: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def password_reset_verify(request):
@@ -744,7 +726,6 @@ def password_reset_verify(request):
         
     except Exception as e:
         return Response({"message": f"Error al verificar código: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -786,11 +767,9 @@ def password_reset_confirm(request):
     except Exception as e:
         return Response({"message": f"Error al cambiar contraseña: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 # ======================================================
 # 🔹 ENDPOINT PARA VER PDF DESDE ADMIN
 # ======================================================
-
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
