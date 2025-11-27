@@ -49,7 +49,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # ✅ Para servir archivos estáticos
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -174,16 +174,15 @@ SIMPLE_JWT = {
 }
 
 
-# ===== 📧 EMAIL CONFIGURATION (Gmail con SSL) ===== 
+# ===== 📧 EMAIL CONFIGURATION (Resend SMTP) ===== 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465  # ✅ Puerto SSL
-EMAIL_USE_SSL = True  # ✅ Usar SSL en lugar de TLS
-EMAIL_USE_TLS = False  # ✅ Desactivar TLS
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'maisondeparfumsprofesional@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_HOST_USER', 'maisondeparfumsprofesional@gmail.com')
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
+EMAIL_HOST = 'smtp.resend.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'resend'
+EMAIL_HOST_PASSWORD = os.environ.get('RESEND_API_KEY', '')
+DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
+SERVER_EMAIL = 'onboarding@resend.dev'
 EMAIL_TIMEOUT = 30
 
 
