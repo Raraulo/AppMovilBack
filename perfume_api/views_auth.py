@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
-from django.contrib.auth.hashers import make_password
+from django.contrib.auth.hashers import make_password, check_password
 from rest_framework import serializers
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -18,18 +18,30 @@ from perfume_api.models import Cliente, Usuario
 
 
 # =========================
-# 🔹 LOGIN CON JWT + ROLES
+# 🔹 LOGIN CON JWT + ROLES (MEJORADO)
 # =========================
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         email = attrs.get("email")
         password = attrs.get("password")
 
-        # Autenticación por email
-        user = authenticate(email=email, password=password)
-        if not user:
-            raise serializers.ValidationError("❌ Credenciales incorrectas")
+        # Verificar si el usuario existe
+        try:
+            user = Usuario.objects.get(email=email)
+        except Usuario.DoesNotExist:
+            raise serializers.ValidationError({
+                "detail": "Este correo no está registrado",
+                "code": "user_not_found"
+            })
 
+        # Verificar si la contraseña es correcta
+        if not check_password(password, user.password):
+            raise serializers.ValidationError({
+                "detail": "Contraseña incorrecta",
+                "code": "invalid_password"
+            })
+
+        # Generar tokens
         refresh = RefreshToken.for_user(user)
 
         permisos = []
@@ -41,6 +53,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             "access": str(refresh.access_token),
             "id": user.id,
             "email": user.email,
+            "username": user.email.split('@')[0],
             "rol": user.rol,
             "permisos": permisos
         }
@@ -48,6 +61,35 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+# =========================
+# 🔹 VERIFICAR SI USUARIO EXISTE (NUEVO)
+# =========================
+@csrf_exempt
+def check_user_exists(request):
+    """
+    Verifica si un usuario existe sin exponer información sensible
+    POST /api/check-user/
+    Body: {"email": "usuario@example.com"}
+    """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            email = data.get('email', '').strip().lower()
+            
+            if not email:
+                return JsonResponse({'exists': False}, status=200)
+            
+            user_exists = Usuario.objects.filter(email=email).exists()
+            
+            return JsonResponse({'exists': user_exists}, status=200)
+            
+        except Exception as e:
+            print(f"Error verificando usuario: {str(e)}")
+            return JsonResponse({'exists': False}, status=200)
+    
+    return JsonResponse({"message": "Método no permitido"}, status=405)
 
 
 # =========================
@@ -71,41 +113,20 @@ def send_code(request):
             if not email:
                 return JsonResponse({"message": "Correo requerido"}, status=400)
 
-            # ✅ MODO DESARROLLO: Auto-aprobar sin enviar email
+            # MODO DESARROLLO: Auto-aprobar sin enviar email
             code = "000000"  # Código fijo para desarrollo
             codes[email] = {"code": code, "timestamp": timezone.now()}
 
-            print(f"✅ [MODO DEV] Email registrado: {email} (sin envío de correo)")
+            print(f"[MODO DEV] Email registrado: {email} (sin envío de correo)")
 
-            # ❌ COMENTADO: Generar código aleatorio
-            # code = str(random.randint(100000, 999999))
-            # codes[email] = {"code": code, "timestamp": timezone.now()}
-            # print(f"📧 Código generado para {email}: {code}")
-
-            # ❌ COMENTADO: ENVIAR EMAIL EN SEGUNDO PLANO
-            # def send_email_async():
-            #     try:
-            #         send_mail(
-            #             subject="Código de verificación - Maison Des Senteurs",
-            #             message=f"Tu código de verificación es: {code}\n\nEste código expira en 10 minutos.\n\n-- Maison Des Parfums",
-            #             from_email=settings.DEFAULT_FROM_EMAIL,
-            #             recipient_list=[email],
-            #             fail_silently=False,
-            #         )
-            #         print(f"✅ Email enviado exitosamente a {email}")
-            #     except Exception as e:
-            #         print(f"❌ Error enviando email a {email}: {e}")
-            # 
-            # Thread(target=send_email_async, daemon=True).start()
-
-            # ✅ RESPONDER INMEDIATAMENTE
+            # RESPONDER INMEDIATAMENTE
             return JsonResponse({
                 "message": "Código enviado correctamente",
                 "email": email
             }, status=200)
             
         except Exception as e:
-            print(f"❌ Error generando código: {str(e)}")
+            print(f"Error generando código: {str(e)}")
             return JsonResponse({"message": f"Error: {str(e)}"}, status=500)
 
     return JsonResponse({"message": "Método no permitido"}, status=405)
@@ -130,34 +151,10 @@ def verify_code(request):
                     status=400
                 )
 
-            # ✅ MODO DESARROLLO: Aprobar automáticamente
-            print(f"✅ [MODO DEV] Código verificado automáticamente para {email}")
+            # MODO DESARROLLO: Aprobar automáticamente
+            print(f"[MODO DEV] Código verificado automáticamente para {email}")
 
-            # ❌ COMENTADO: Validación de código real
-            # if not code:
-            #     return JsonResponse({"message": "Código es requerido"}, status=400)
-            # 
-            # if email not in codes:
-            #     return JsonResponse(
-            #         {"message": "No se encontró código para este email"}, 
-            #         status=404
-            #     )
-            # 
-            # if codes[email]["code"] != code:
-            #     return JsonResponse(
-            #         {"message": "Código inválido"}, 
-            #         status=400
-            #     )
-            # 
-            # timestamp = codes[email]["timestamp"]
-            # if (timezone.now() - timestamp).seconds > 600:
-            #     del codes[email]
-            #     return JsonResponse(
-            #         {"message": "Código expirado"}, 
-            #         status=400
-            #     )
-
-            # ✅ Buscar si ya existe el cliente
+            # Buscar si ya existe el cliente
             try:
                 cliente = Cliente.objects.get(email=email)
                 return JsonResponse({
@@ -179,7 +176,7 @@ def verify_code(request):
                 }, status=200)
 
         except Exception as e:
-            print(f"❌ Error verificando código: {str(e)}")
+            print(f"Error verificando código: {str(e)}")
             return JsonResponse({"message": f"Error: {str(e)}"}, status=500)
 
     return JsonResponse({"message": "Método no permitido"}, status=405)
@@ -206,13 +203,6 @@ def create_cliente(request):
             data = json.loads(request.body)
             email = data.get("email", "").strip().lower()
 
-            # ❌ COMENTADO: Validación de código
-            # if email not in codes:
-            #     return JsonResponse(
-            #         {"message": "Código no verificado. Verifica el código primero."}, 
-            #         status=400
-            #     )
-
             # Verificar si el usuario ya existe
             if Usuario.objects.filter(email=email).exists():
                 return JsonResponse(
@@ -220,16 +210,16 @@ def create_cliente(request):
                     status=400
                 )
 
-            # ✅ Crear usuario
+            # Crear usuario
             usuario = Usuario.objects.create_user(
                 email=email,
                 password=data.get("password"),
                 rol="cliente"
             )
 
-            print(f"✅ Usuario creado: {usuario.email}")
+            print(f"Usuario creado: {usuario.email}")
 
-            # ✅ Crear cliente asociado
+            # Crear cliente asociado
             cliente = Cliente.objects.create(
                 nombre=data.get("nombre", "Cliente"),
                 apellido=data.get("apellido", "Nuevo"),
@@ -242,11 +232,7 @@ def create_cliente(request):
                 email_verified_at=timezone.now()
             )
 
-            print(f"✅ Cliente creado: {cliente.nombre} {cliente.apellido}")
-
-            # ❌ COMENTADO: Eliminar código usado
-            # if email in codes:
-            #     del codes[email]
+            print(f"Cliente creado: {cliente.nombre} {cliente.apellido}")
 
             return JsonResponse({
                 "message": "Cliente creado exitosamente",
@@ -259,7 +245,7 @@ def create_cliente(request):
             }, status=201)
 
         except Exception as e:
-            print(f"❌ Error creando cliente: {str(e)}")
+            print(f"Error creando cliente: {str(e)}")
             import traceback
             traceback.print_exc()
             return JsonResponse({"message": f"Error: {str(e)}"}, status=500)

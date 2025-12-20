@@ -9,22 +9,27 @@ from django.db.models import Sum, F
 from django.forms import BaseInlineFormSet 
 from decimal import Decimal
 
+
 from .models import Usuario, Producto, Cliente, Factura, DetalleFactura, Marca, Tipo, PasswordResetCode
+
 
 # ==================== CONSTANTES ====================
 IVA_RATE = Decimal('0.15')
 IVA_FACTOR = Decimal('1.15')
+
 
 # ==================== PERSONALIZACIÓN DEL ADMIN ====================
 admin.site.site_header = "Maison Des Senteurs - Administración"
 admin.site.site_title = "Admin Perfumería"
 admin.site.index_title = "Panel de Control"
 
+
 # ✅ Desregistrar el modelo Group
 try:
     admin.site.unregister(Group)
 except:
     pass
+
 
 # ==================== INLINE CUSTOM FORMSET ====================
 class DetalleFacturaFormSet(BaseInlineFormSet):
@@ -62,6 +67,7 @@ class DetalleFacturaFormSet(BaseInlineFormSet):
             
         return instance
 
+
 # ==================== INLINE PARA FACTURA ====================
 # Definir el Inline para los detalles de la factura
 class DetalleFacturaInline(admin.TabularInline):
@@ -71,6 +77,7 @@ class DetalleFacturaInline(admin.TabularInline):
     # precio_unitario es ahora el precio sin IVA.
     fields = ('producto', 'cantidad', 'precio_unitario', 'subtotal') 
     readonly_fields = ('precio_unitario', 'subtotal',) # ¡Ahora son de solo lectura!
+
 
 # ==================== USUARIO ====================
 @admin.register(Usuario)
@@ -128,6 +135,7 @@ class UsuarioAdmin(admin.ModelAdmin):
         )
     estado_badge.short_description = 'Estado'
 
+
 # ==================== MARCA ====================
 @admin.register(Marca)
 class MarcaAdmin(admin.ModelAdmin):
@@ -176,6 +184,7 @@ class MarcaAdmin(admin.ModelAdmin):
         )
     productos_count.short_description = 'Productos'
 
+
 # ==================== TIPO ====================
 @admin.register(Tipo)
 class TipoAdmin(admin.ModelAdmin):
@@ -196,6 +205,7 @@ class TipoAdmin(admin.ModelAdmin):
             count
         )
     productos_count.short_description = 'Productos'
+
 
 # ==================== PRODUCTO ====================
 @admin.register(Producto)
@@ -295,6 +305,7 @@ class ProductoAdmin(admin.ModelAdmin):
         )
     genero_badge.short_description = 'Género'
 
+
 # ==================== CLIENTE ====================
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
@@ -355,7 +366,8 @@ class ClienteAdmin(admin.ModelAdmin):
         )
     facturas_count.short_description = 'Compras'
 
-# ==================== FACTURA (AJUSTADA) ====================
+
+# ==================== FACTURA (✅ CON DESCUENTO DEL 15%) ====================
 @admin.register(Factura)
 class FacturaAdmin(admin.ModelAdmin):
     inlines = [DetalleFacturaInline] 
@@ -364,14 +376,17 @@ class FacturaAdmin(admin.ModelAdmin):
         'numero_orden_display',
         'cliente_nombre_completo',
         'fecha',
-        'total_formateado',
-        'subtotal_sin_iva_formateado', # Mostrar Subtotal sin IVA
-        'iva_calculado_formateado',     # Mostrar IVA
+        'total_sin_descuento_formateado',  # ✅ NUEVO: Subtotal original
+        'descuento_badge',                  # ✅ NUEVO: Badge de descuento
+        'monto_descuento_formateado',       # ✅ NUEVO: Monto descontado
+        'total_formateado',                 # Total final
+        'subtotal_sin_iva_formateado',
+        'iva_calculado_formateado',
         'metodo_pago_badge',
         'items_count',
         'ver_pdf_button',
     ]
-    list_filter = ['metodo_pago', 'fecha']
+    list_filter = ['metodo_pago', 'descuento_aplicado', 'fecha']  # ✅ Filtro por descuento
     search_fields = [
         'cliente__nombre',
         'cliente__apellido',
@@ -379,48 +394,69 @@ class FacturaAdmin(admin.ModelAdmin):
         'id',
     ]
     date_hierarchy = 'fecha'
-    # 'total' es de solo lectura porque se calcula
-    readonly_fields = ['fecha', 'total'] 
+    # ✅ Campos de descuento de solo lectura
+    readonly_fields = ['fecha', 'total', 'descuento_aplicado', 'monto_descuento', 'total_sin_descuento'] 
     ordering = ['-fecha']
     
     fieldsets = (
         ('Información de la Factura', {
-            # Mostramos el total final aquí.
-            'fields': ('cliente', 'fecha', 'metodo_pago', 'total') 
+            'fields': ('cliente', 'fecha', 'metodo_pago')
+        }),
+        ('💰 Información de Descuento', {  # ✅ NUEVA SECCIÓN
+            'fields': (
+                'total_sin_descuento',
+                'descuento_aplicado',
+                'monto_descuento',
+                'total',
+            ),
+            'classes': ('wide',),
+            'description': 'Descuento automático del 15% aplicado a compras mayores a €500'
         }),
     )
     
     # ------------------ Lógica de Cálculo ------------------
     def save_model(self, request, obj, form, change):
-        # Es crucial inicializar 'total' a 0 antes de guardar si es la primera vez
         if obj.total is None:
             obj.total = Decimal('0.00')
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
-        # Primero, llama a la función base para guardar los detalles
         super().save_formset(request, form, formset, change)
         
         factura = form.instance
         
-        # Solo calcular si el formset es el de DetalleFactura
         if formset.model == DetalleFactura:
-            # 1. Sumar los SUBTOTALES (que son SIN IVA)
             agregacion = DetalleFactura.objects.filter(factura=factura).aggregate(
-                subtotal_total=Sum('subtotal') # Suma los subtotales (SIN IVA)
+                subtotal_total=Sum('subtotal')
             )
             
             subtotal_total = agregacion['subtotal_total'] or Decimal('0.00')
+            total_con_iva = (subtotal_total * IVA_FACTOR).quantize(Decimal('0.00'))
             
-            # 2. Calcular el TOTAL (con IVA)
-            # Total = Subtotal Total * 1.15
-            total_final = (subtotal_total * IVA_FACTOR).quantize(Decimal('0.00'))
+            # ✅ CALCULAR DESCUENTO DEL 15% SI SUPERA €500
+            UMBRAL_DESCUENTO = Decimal('500.00')
+            PORCENTAJE_DESCUENTO = Decimal('0.15')
             
-            # Si el total ha cambiado, actualizar y guardar la factura
-            if factura.total != total_final:
+            if total_con_iva >= UMBRAL_DESCUENTO:
+                descuento = (total_con_iva * PORCENTAJE_DESCUENTO).quantize(Decimal('0.00'))
+                total_final = total_con_iva - descuento
+                
+                factura.total_sin_descuento = total_con_iva
+                factura.descuento_aplicado = True
+                factura.monto_descuento = descuento
                 factura.total = total_final
-                # Usamos update_fields para actualizar solo el campo necesario
-                factura.save(update_fields=['total'])
+            else:
+                factura.total_sin_descuento = total_con_iva
+                factura.descuento_aplicado = False
+                factura.monto_descuento = Decimal('0.00')
+                factura.total = total_con_iva
+            
+            factura.save(update_fields=[
+                'total',
+                'total_sin_descuento',
+                'descuento_aplicado',
+                'monto_descuento'
+            ])
     # --------------------------------------------------------
     
     def numero_orden_display(self, obj):
@@ -437,9 +473,53 @@ class FacturaAdmin(admin.ModelAdmin):
     cliente_nombre_completo.short_description = 'Cliente'
     cliente_nombre_completo.admin_order_field = 'cliente__nombre'
     
-    # Nuevo: Mostrar Subtotal sin IVA
+    # ✅ NUEVO: Mostrar Total Original (sin descuento)
+    def total_sin_descuento_formateado(self, obj):
+        if obj.total_sin_descuento and obj.total_sin_descuento > 0:
+            total_original = f"€{obj.total_sin_descuento.quantize(Decimal('0.00'))}"
+            if obj.descuento_aplicado:
+                return format_html(
+                    '<span style="text-decoration:line-through; color:#999; font-size:13px;">{}</span>',
+                    total_original
+                )
+            return format_html(
+                '<span style="font-weight:600; font-size:14px; color:#555;">{}</span>',
+                total_original
+            )
+        return '-'
+    total_sin_descuento_formateado.short_description = 'Subtotal Original'
+    
+    # ✅ NUEVO: Badge visual del descuento
+    def descuento_badge(self, obj):
+        if obj.descuento_aplicado:
+            return format_html(
+                '<span style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); '
+                'color:white; padding:6px 14px; border-radius:20px; font-size:11px; '
+                'font-weight:700; text-transform:uppercase; box-shadow:0 2px 8px rgba(16,185,129,0.3); '
+                'display:inline-flex; align-items:center; gap:6px;">'
+                '<span style="font-size:14px;">🎉</span> 15% OFF'
+                '</span>'
+            )
+        return format_html(
+            '<span style="background-color:#E5E7EB; color:#6B7280; padding:4px 10px; '
+            'border-radius:12px; font-size:10px; font-weight:600;">Sin descuento</span>'
+        )
+    descuento_badge.short_description = 'Descuento'
+    descuento_badge.admin_order_field = 'descuento_aplicado'
+    
+    # ✅ NUEVO: Monto del descuento
+    def monto_descuento_formateado(self, obj):
+        if obj.descuento_aplicado and obj.monto_descuento > 0:
+            descuento = f"€{obj.monto_descuento.quantize(Decimal('0.00'))}"
+            return format_html(
+                '<span style="font-weight:700; font-size:14px; color:#10B981;">-{}</span>',
+                descuento
+            )
+        return format_html('<span style="color:#999;">€0.00</span>')
+    monto_descuento_formateado.short_description = 'Ahorro'
+    monto_descuento_formateado.admin_order_field = 'monto_descuento'
+    
     def subtotal_sin_iva_formateado(self, obj):
-        # Recalcular el subtotal total (suma de subtotales) para la visualización
         subtotal_total = obj.detallefactura_set.aggregate(
             subtotal_total=Sum('subtotal')
         )['subtotal_total'] or Decimal('0.00')
@@ -451,16 +531,12 @@ class FacturaAdmin(admin.ModelAdmin):
         )
     subtotal_sin_iva_formateado.short_description = 'Subtotal (s/IVA)'
     
-    # Nuevo: Mostrar IVA
     def iva_calculado_formateado(self, obj):
-        # Recalcular el subtotal total (suma de subtotales)
         subtotal_total = obj.detallefactura_set.aggregate(
             subtotal_total=Sum('subtotal')
         )['subtotal_total'] or Decimal('0.00')
         
-        # Calcular IVA: Subtotal Total * 0.15
         iva = (subtotal_total * IVA_RATE).quantize(Decimal('0.00'))
-        
         iva_formateado = f"€{iva}"
         return format_html(
             '<span style="font-weight:400; font-size:14px; color:#F59E0B;">{}</span>',
@@ -470,11 +546,18 @@ class FacturaAdmin(admin.ModelAdmin):
     
     def total_formateado(self, obj):
         total = f"€{obj.total.quantize(Decimal('0.00'))}"
+        # Si tiene descuento, mostrarlo en verde más destacado
+        if obj.descuento_aplicado:
+            return format_html(
+                '<span style="font-weight:800; font-size:16px; color:#10B981; '
+                'text-shadow:0 1px 2px rgba(16,185,129,0.2);">{}</span>',
+                total
+            )
         return format_html(
-            '<span style="font-weight:700; font-size:15px; color:#10B981;">{}</span>',
+            '<span style="font-weight:700; font-size:15px; color:#999;">{}</span>',
             total
         )
-    total_formateado.short_description = 'Total (c/IVA)'
+    total_formateado.short_description = 'Total Final'
     total_formateado.admin_order_field = 'total'
     
     def metodo_pago_badge(self, obj):
@@ -510,7 +593,6 @@ class FacturaAdmin(admin.ModelAdmin):
     items_count.short_description = 'Productos'
     
     def ver_pdf_button(self, obj):
-        # Asume que 'admin_factura_pdf' está definido en tus urls
         url = reverse('admin_factura_pdf', args=[obj.id]) 
         return format_html(
             '<a class="button" style="background-color:#10B981; color:white; padding:10px 18px; '
@@ -523,8 +605,8 @@ class FacturaAdmin(admin.ModelAdmin):
         )
     ver_pdf_button.short_description = 'Acciones'
 
+
 # ==================== DETALLE FACTURA ====================
-# Este DetalleFacturaAdmin se mantiene para la vista de lista/cambio si se accede directamente.
 @admin.register(DetalleFactura)
 class DetalleFacturaAdmin(admin.ModelAdmin):
     list_display = [
@@ -541,7 +623,7 @@ class DetalleFacturaAdmin(admin.ModelAdmin):
         'factura__cliente__nombre',
         'factura__id',
     ]
-    readonly_fields = ['subtotal', 'precio_unitario'] # ¡De solo lectura!
+    readonly_fields = ['subtotal', 'precio_unitario']
     ordering = ['-factura__fecha']
     
     def factura_numero(self, obj):
@@ -555,7 +637,6 @@ class DetalleFacturaAdmin(admin.ModelAdmin):
     factura_numero.short_description = 'Factura'
     
     def producto_info(self, obj):
-        # Usamos el precio original del producto para mostrar.
         precio_con_iva = f"€{obj.producto.precio.quantize(Decimal('0.00'))}"
         return format_html(
             '<div style="display:flex; align-items:center; gap:10px;">'
@@ -590,6 +671,7 @@ class DetalleFacturaAdmin(admin.ModelAdmin):
         )
     subtotal_formateado_sin_iva.short_description = 'Subtotal (s/IVA)'
     subtotal_formateado_sin_iva.admin_order_field = 'subtotal'
+
 
 # ==================== PASSWORD RESET CODE ====================
 @admin.register(PasswordResetCode)

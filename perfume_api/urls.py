@@ -20,11 +20,11 @@ from .views import (
     password_reset_verify,
     password_reset_confirm,
     admin_factura_pdf,
-    send_verification_code,  # ✅ NUEVO
-    verify_email_code,       # ✅ NUEVO
+    send_verification_code,
+    verify_email_code,
 )
 from . import views_auth
-from . import dashboard_views  # ✅ IMPORTAR DASHBOARD
+from . import dashboard_views
 
 
 # ==================== ROUTER CON VIEWSETS ====================
@@ -40,10 +40,10 @@ router.register("clientes", ClienteViewSet)
 
 # ==================== URLS PRINCIPALES ====================
 urlpatterns = [
-    # ✅ DASHBOARD PERSONALIZADO (debe ir ANTES de las rutas del router)
+    # DASHBOARD PERSONALIZADO (debe ir ANTES de las rutas del router)
     path("admin/dashboard/", dashboard_views.custom_dashboard, name="custom_dashboard"),
     
-    # 📄 VER PDF DESDE ADMIN
+    # VER PDF DESDE ADMIN
     path("admin/factura/<int:factura_id>/pdf/", admin_factura_pdf, name="admin_factura_pdf"),
     
 ] + router.urls + [
@@ -55,7 +55,7 @@ urlpatterns = [
     path("favoritos/agregar/", agregar_a_favoritos, name="agregar_a_favoritos"),
     path("carrito/agregar/", agregar_a_carrito, name="agregar_a_carrito"),
     
-    # ==================== VERIFICACIÓN DE EMAIL (NUEVO REGISTRO) ✅ NUEVO ====================
+    # ==================== VERIFICACIÓN DE EMAIL (NUEVO REGISTRO) ====================
     path("auth/send-verification-code/", send_verification_code, name="send_verification_code"),
     path("auth/verify-email-code/", verify_email_code, name="verify_email_code"),
     
@@ -63,6 +63,7 @@ urlpatterns = [
     path("auth/send-code/", views_auth.send_code, name="send_code"),
     path("auth/verify-code/", views_auth.verify_code, name="verify_code"),
     path("auth/create-cliente/", views_auth.create_cliente, name="create_cliente"),
+    path("auth/check-user/", views_auth.check_user_exists, name="check_user_exists"),  # ✅ NUEVO
     
     # ==================== CLIENTES ====================
     path("clientes/secure/<int:pk>/", get_cliente, name="get_cliente"),

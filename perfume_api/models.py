@@ -6,12 +6,14 @@ from datetime import timedelta
 import random
 
 
+
 # Define los roles para evitar repetición
 ROLES = [
     ('admin', 'Administrador'),
     ('empleado', 'Empleado'),
     ('cliente', 'Cliente'),
 ]
+
 
 
 # ----------- MANAGER PERSONALIZADO -----------
@@ -26,10 +28,12 @@ class UsuarioManager(BaseUserManager):
         return user
 
 
+
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("rol", "admin")
+
 
 
         if extra_fields.get("is_staff") is not True:
@@ -38,6 +42,7 @@ class UsuarioManager(BaseUserManager):
             raise ValueError("Superuser must have is_superuser=True.")
             
         return self.create_user(email, password, **extra_fields)
+
 
 
 # ----------- MODELO USUARIO PERSONALIZADO -----------
@@ -59,15 +64,19 @@ class Usuario(AbstractUser):
     )
 
 
+
     USERNAME_FIELD = "email"  # 🔹 Ahora el login será con email
     REQUIRED_FIELDS = ['nombre', 'apellido'] # 🔹 Pedirá nombre y apellido al crear superusuario
+
 
 
     objects = UsuarioManager()  # ✅ Usar nuestro manager personalizado
 
 
+
     def __str__(self):
         return f"{self.email} - {self.rol}"
+
 
 
 # ---------- MARCAS ----------
@@ -78,8 +87,10 @@ class Marca(models.Model):
     descripcion = models.TextField(blank=True, null=True) 
 
 
+
     def __str__(self):
         return self.nombre
+
 
 
 # ---------- TIPOS ----------
@@ -89,8 +100,10 @@ class Tipo(models.Model):
     descripcion = models.TextField(blank=True, null=True)
 
 
+
     def __str__(self):
         return self.nombre
+
 
 
 # ---------- PRODUCTOS ----------
@@ -114,8 +127,10 @@ class Producto(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+
     def __str__(self):
         return self.nombre
+
 
 
 # ---------- CLIENTES ----------
@@ -138,8 +153,10 @@ class Cliente(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+
     def __str__(self):
         return f"{self.nombre} {self.apellido} - {self.email}"
+
 
 
 # ---------- FACTURAS ----------
@@ -160,11 +177,33 @@ class Factura(models.Model):
         default='efectivo'
     )
     
+    # ✅ NUEVOS CAMPOS PARA DESCUENTO DEL 15%
+    descuento_aplicado = models.BooleanField(
+        default=False,
+        verbose_name="Descuento aplicado",
+        help_text="Indica si se aplicó el descuento del 15% por compras mayores a $500"
+    )
+    monto_descuento = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Monto de descuento",
+        help_text="Cantidad en dólares descontada (15% del subtotal)"
+    )
+    total_sin_descuento = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        verbose_name="Total sin descuento",
+        help_text="Precio original antes de aplicar el descuento del 15%"
+    )
+    
     class Meta:
         verbose_name_plural = "Facturas"
         
     def __str__(self):
         return f"Factura #{self.id} - {self.cliente.nombre} {self.cliente.apellido}"
+
 
 
 # ---------- DETALLE FACTURA ----------
@@ -176,11 +215,13 @@ class DetalleFactura(models.Model):
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
 
 
+
     class Meta:
         verbose_name_plural = "Detalles de Factura"
         
     def __str__(self):
         return f"Detalle #{self.id} - Factura #{self.factura.id}"
+
 
 
 # ---------- EMAIL VERIFICATION CODE (ANTIGUO) ----------
@@ -190,13 +231,16 @@ class EmailVerificationCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+
     def is_expired(self):
         # 💡 Usamos la función timedelta definida localmente para no reimportar.
         return timezone.now() > self.created_at + timedelta(minutes=10)
 
 
+
     def __str__(self):
         return f"{self.email} - {self.code}"
+
 
 
 # ---------- ✅ EMAIL VERIFICATION (NUEVO - PARA REGISTRO) ----------
@@ -228,6 +272,7 @@ class EmailVerification(models.Model):
     def generate_code():
         """Genera un código aleatorio de 6 dígitos"""
         return str(random.randint(100000, 999999))
+
 
 
 # ---------- ✅ PASSWORD RESET CODE ----------
