@@ -1,3 +1,4 @@
+# perfume_api/serializers.py
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import Usuario, Marca, Tipo, Producto, Cliente, Factura, DetalleFactura
@@ -83,11 +84,58 @@ class ClienteSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
-# ---------- FACTURA Y DETALLES ----------
+# ---------- ✅ FACTURA Y DETALLES ACTUALIZADOS CON DESCUENTO ----------
+
+class ProductoFacturaSerializer(serializers.Serializer):
+    """Serializer para productos dentro de una factura"""
+    id = serializers.IntegerField()
+    nombre = serializers.CharField()
+    marca = serializers.CharField()
+    tipo = serializers.CharField()
+    imagen = serializers.CharField()
+    cantidad = serializers.IntegerField()
+    precio_unitario = serializers.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+class ClienteFacturaSerializer(serializers.Serializer):
+    """Serializer para datos del cliente en la factura"""
+    nombre = serializers.CharField()
+    apellido = serializers.CharField()
+    email = serializers.EmailField()
+    cedula = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    direccion = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    celular = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
 class FacturaSerializer(serializers.ModelSerializer):
+    """
+    Serializer completo de Factura con soporte para descuentos
+    """
+    productos = ProductoFacturaSerializer(many=True, read_only=True)
+    cliente_info = ClienteFacturaSerializer(source='cliente', read_only=True)
+    numero_orden = serializers.SerializerMethodField()
+    
     class Meta:
         model = Factura
-        fields = "__all__"
+        fields = [
+            'id',
+            'numero_orden',
+            'cliente',
+            'cliente_info',
+            'fecha',
+            'total',
+            'metodo_pago',
+            'productos',
+            # ✅ CAMPOS DE DESCUENTO
+            'descuento_aplicado',
+            'monto_descuento',
+            'total_sin_descuento',
+        ]
+    
+    def get_numero_orden(self, obj):
+        """Genera número de orden único"""
+        return f"ORD-{obj.id:06d}"
 
 
 class DetalleFacturaSerializer(serializers.ModelSerializer):

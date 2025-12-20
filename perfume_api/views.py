@@ -19,13 +19,16 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.conf import settings
 
+
 # ✅ Configurar Resend API Key
 resend.api_key = os.environ.get('RESEND_API_KEY', '')
+
 
 # ✅ REPORTLAB para PDFs
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+
 
 from .models import (
     Usuario, 
@@ -48,47 +51,58 @@ from .serializers import (
     ClienteSerializer,
 )
 
+
 # ======================================================
 # 🔹 VIEWSETS - CRUD Automático
 # ======================================================
+
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
 
+
 class MarcaViewSet(viewsets.ModelViewSet):
     queryset = Marca.objects.all()
     serializer_class = MarcaSerializer
+
 
 class TipoViewSet(viewsets.ModelViewSet):
     queryset = Tipo.objects.all()
     serializer_class = TipoSerializer
 
+
 class ProductoViewSet(viewsets.ModelViewSet):
     queryset = Producto.objects.all()
     serializer_class = ProductoSerializer
+
 
 class FacturaViewSet(viewsets.ModelViewSet):
     queryset = Factura.objects.all()
     serializer_class = FacturaSerializer
 
+
 class DetalleFacturaViewSet(viewsets.ModelViewSet):
     queryset = DetalleFactura.objects.all()
     serializer_class = DetalleFacturaSerializer
+
 
 class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
     permission_classes = [IsAuthenticated]
 
+
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
             return [AllowAny()]
         return [IsAuthenticated()]
 
+
 # ======================================================
 # ✅ ENDPOINTS DE VERIFICACIÓN DE EMAIL CON RESEND API
 # ======================================================
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -163,6 +177,7 @@ def send_verification_code(request):
             'message': f'Error al enviar email: {str(e)}'
         }, status=500)
 
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_email_code(request):
@@ -208,9 +223,11 @@ def verify_email_code(request):
             'verified': False
         }, status=400)
 
+
 # ======================================================
 # 🔹 ENDPOINTS PERSONALIZADOS
 # ======================================================
+
 
 @api_view(["GET"])
 def productos_por_marca(request, marca_id):
@@ -218,17 +235,20 @@ def productos_por_marca(request, marca_id):
     serializer = ProductoSerializer(productos, many=True)
     return Response(serializer.data)
 
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def agregar_a_favoritos(request):
     producto_id = request.data.get("producto_id")
     return Response({"mensaje": f"Producto {producto_id} añadido a favoritos"})
 
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def agregar_a_carrito(request):
     producto_id = request.data.get("producto_id")
     return Response({"mensaje": f"Producto {producto_id} añadido al carrito"})
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -240,6 +260,7 @@ def get_cliente(request, pk):
     serializer = ClienteSerializer(cliente)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_cliente(request, pk):
@@ -248,11 +269,13 @@ def update_cliente(request, pk):
     except Cliente.DoesNotExist:
         return Response({"message": "Cliente no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
+
     data = request.data.copy()
     if data.get("password"):
         data["password"] = make_password(data["password"])
     else:
         data["password"] = cliente.password
+
 
     serializer = ClienteSerializer(cliente, data=data, partial=True)
     if serializer.is_valid():
@@ -260,9 +283,11 @@ def update_cliente(request, pk):
         return Response(serializer.data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 # ======================================================
-# 🔹 FUNCIÓN: GENERAR PDF CON REPORTLAB
+# 🔹 FUNCIÓN: GENERAR PDF CON REPORTLAB (✅ CON DESCUENTO)
 # ======================================================
+
 
 def generar_pdf_factura(factura):
     """
@@ -379,10 +404,31 @@ def generar_pdf_factura(factura):
                 y = height - 100
                 c.setFont("Helvetica", 10)
         
-        # Totales
+        # ✅ TOTALES CON DESCUENTO
         y -= 30
         c.line(350, y, width - 50, y)
         y -= 25
+        
+        c.setFont("Helvetica", 12)
+        c.setFillColorRGB(0, 0, 0)  # Negro
+        
+        # ✅ SI HAY DESCUENTO, MOSTRARLO
+        if factura.descuento_aplicado and factura.monto_descuento > 0:
+            # Subtotal original (tachado)
+            c.drawString(320, y, "Subtotal original:")
+            c.drawString(470, y, f"${float(factura.total_sin_descuento):.2f}")
+            
+            y -= 20
+            # Descuento en verde
+            c.setFillColorRGB(0.06, 0.72, 0.50)  # Verde #10B981
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(320, y, "Descuento (15%):")
+            c.drawString(470, y, f"-${float(factura.monto_descuento):.2f}")
+            c.setFillColorRGB(0, 0, 0)  # Volver a negro
+            
+            y -= 20
+            c.line(350, y + 5, width - 50, y + 5)
+            y -= 5
         
         c.setFont("Helvetica", 12)
         c.drawString(370, y, "Subtotal:")
@@ -403,6 +449,13 @@ def generar_pdf_factura(factura):
         c.drawCentredString(width/2, 50, "Gracias por su compra en Maison Des Senteurs")
         c.drawCentredString(width/2, 35, "Perfumería de Lujo")
         
+        # ✅ Mensaje de ahorro si hay descuento
+        if factura.descuento_aplicado and factura.monto_descuento > 0:
+            c.setFillColorRGB(0.06, 0.72, 0.50)  # Verde
+            c.setFont("Helvetica-Bold", 10)
+            c.drawCentredString(width/2, 20, f"¡Has ahorrado ${float(factura.monto_descuento):.2f} con tu descuento del 15%!")
+            c.setFillColorRGB(0, 0, 0)
+        
         c.save()
         pdf_buffer.seek(0)
         return pdf_buffer.getvalue()
@@ -412,6 +465,7 @@ def generar_pdf_factura(factura):
         import traceback
         traceback.print_exc()
         return None
+
 
 def enviar_factura_por_email(factura):
     """
@@ -428,16 +482,21 @@ def enviar_factura_por_email(factura):
         message = f"""
 Estimado/a {factura.cliente.nombre} {factura.cliente.apellido},
 
+
 Gracias por su compra en Maison Des Senteurs.
 
+
 Adjunto encontrará su factura correspondiente a la orden ORD-{factura.id:06d}.
+
 
 Detalles de la compra:
 - Total: ${factura.total:.2f}
 - Método de pago: {factura.metodo_pago.upper()}
 - Fecha: {factura.fecha.strftime('%d/%m/%Y %H:%M')}
 
+
 ¡Esperamos volver a verle pronto!
+
 
 Atentamente,
 Maison Des Senteurs
@@ -468,9 +527,11 @@ Perfumería de Lujo
         traceback.print_exc()
         return False
 
+
 # ======================================================
 # 🔹 ENDPOINT PARA PROCESAR VENTAS
 # ======================================================
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -576,9 +637,11 @@ def procesar_venta(request):
         traceback.print_exc()
         return Response({"error": f"Error al procesar la venta: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 # ======================================================
-# 🔹 ENDPOINT PARA OBTENER FACTURAS DEL USUARIO
+# ✅ ENDPOINT PARA OBTENER FACTURAS DEL USUARIO (CON DESCUENTO)
 # ======================================================
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -627,7 +690,11 @@ def obtener_facturas_usuario(request, usuario_id):
                     'cedula': cliente.cedula if hasattr(cliente, 'cedula') else '',
                     'direccion': cliente.direccion if hasattr(cliente, 'direccion') else '',
                     'celular': cliente.celular if hasattr(cliente, 'celular') else '',
-                }
+                },
+                # ✅ CAMPOS DE DESCUENTO
+                'descuento_aplicado': factura.descuento_aplicado,
+                'monto_descuento': float(factura.monto_descuento) if factura.monto_descuento else 0.0,
+                'total_sin_descuento': float(factura.total_sin_descuento) if factura.total_sin_descuento else float(factura.total),
             })
         
         return Response({"facturas": facturas_data}, status=status.HTTP_200_OK)
@@ -636,9 +703,11 @@ def obtener_facturas_usuario(request, usuario_id):
         print(f"❌ Error: {str(e)}")
         return Response({"error": f"Error al obtener facturas: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 # ======================================================
 # 🔹 ENDPOINTS DE RECUPERACIÓN DE CONTRASEÑA
 # ======================================================
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -669,13 +738,18 @@ def password_reset_request(request):
             message = f"""
 Hola,
 
+
 Has solicitado restablecer tu contraseña en Maison Des Senteurs.
+
 
 Tu código de verificación es: {code}
 
+
 Este código expira en 10 minutos.
 
+
 Si no solicitaste este cambio, ignora este mensaje.
+
 
 Atentamente,
 Maison Des Senteurs
@@ -696,6 +770,7 @@ Maison Des Senteurs
         
     except Exception as e:
         return Response({"message": f"Error al procesar solicitud: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -726,6 +801,7 @@ def password_reset_verify(request):
         
     except Exception as e:
         return Response({"message": f"Error al verificar código: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -767,9 +843,11 @@ def password_reset_confirm(request):
     except Exception as e:
         return Response({"message": f"Error al cambiar contraseña: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 # ======================================================
 # 🔹 ENDPOINT PARA VER PDF DESDE ADMIN
 # ======================================================
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

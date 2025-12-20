@@ -497,7 +497,7 @@ class FacturaAdmin(admin.ModelAdmin):
                 'color:white; padding:6px 14px; border-radius:20px; font-size:11px; '
                 'font-weight:700; text-transform:uppercase; box-shadow:0 2px 8px rgba(16,185,129,0.3); '
                 'display:inline-flex; align-items:center; gap:6px;">'
-                '<span style="font-size:14px;">🎉</span> 15% OFF'
+                '<span style="font-size:14px;"></span> 15% OFF'
                 '</span>'
             )
         return format_html(
