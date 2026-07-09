@@ -19,12 +19,14 @@ ALLOWED_HOSTS = [
 ]
 
 
-# ✅ Base de datos PostgreSQL (Supabase via DATABASE_URL)
+# ✅ Base de datos PostgreSQL (Supabase Transaction Pooler - puerto 6543)
+# IMPORTANTE: conn_max_age=0 porque el Transaction Pooler (PgBouncer) 
+# no soporta conexiones persistentes entre requests
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
+        conn_max_age=0,
+        conn_health_checks=False,
         ssl_require=True,
     )
 }
