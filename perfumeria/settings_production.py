@@ -4,8 +4,8 @@ import os
 import dj_database_url
 
 
-# ⚠️ Seguridad en producción (TEMPORALMENTE EN TRUE PARA DEBUGGEAR EL ERROR 500)
-DEBUG = True
+# ⚠️ Seguridad en producción
+DEBUG = False
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("La variable de entorno SECRET_KEY es obligatoria en producción")
