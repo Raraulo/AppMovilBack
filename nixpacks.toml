@@ -1,4 +1,8 @@
-﻿@"
 [phases.setup]
-aptPkgs = ['default-mysql-client', 'default-libmysqlclient-dev', 'libcairo2-dev', 'pkg-config', 'python3-dev']
-"@ | Out-File -FilePath nixpacks.toml -Encoding UTF8
+aptPkgs = ["libpq-dev", "libcairo2-dev", "pkg-config", "python3-dev"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "gunicorn perfumeria.wsgi --workers 2 --threads 2 --timeout 120 --log-file -"

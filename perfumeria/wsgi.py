@@ -11,13 +11,14 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 import os
 from django.core.wsgi import get_wsgi_application
 
-# ✅ Detectar si estamos en Railway o en desarrollo local
-# Railway establece automáticamente estas variables de entorno
-if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('DATABASE_URL'):
-    # Estamos en Railway (producción)
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'perfumeria.settings_production')
-else:
-    # Estamos en desarrollo local
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'perfumeria.settings')
+# ✅ Si DJANGO_SETTINGS_MODULE ya está seteado (Render lo hace via variable de entorno),
+# lo respeta. Si no, detecta si hay DATABASE_URL (producción genérica) o usa desarrollo local.
+if not os.environ.get('DJANGO_SETTINGS_MODULE'):
+    if os.environ.get('DATABASE_URL') or os.environ.get('RENDER'):
+        # Estamos en Render (producción)
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'perfumeria.settings_production')
+    else:
+        # Estamos en desarrollo local
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'perfumeria.settings')
 
 application = get_wsgi_application()

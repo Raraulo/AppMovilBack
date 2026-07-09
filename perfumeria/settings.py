@@ -8,8 +8,8 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# 🔑 Llave secreta (NO usar esta en producción)
-SECRET_KEY = 'django-insecure-b*o&%slu&o6s2ojwv--zt%71_h%wp+@i&jhf!!@yhx=8=322fh'
+# 🔑 Llave secreta (cargada desde variable de entorno en producción)
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-b*o&%slu&o6s2ojwv--zt%71_h%wp+@i&jhf!!@yhx=8=322fh')
 
 
 # ⚠️ En producción, pon DEBUG = False
@@ -18,7 +18,8 @@ DEBUG = True
 
 # 🌍 Permitir todas las IPs en desarrollo
 ALLOWED_HOSTS = [
-    "*",
+    "localhost",
+    "127.0.0.1",
     'suanne-unamortized-denae.ngrok-free.dev'
 ]
 

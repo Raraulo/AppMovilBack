@@ -1,1 +1,1 @@
-web: gunicorn perfumeria.wsgi --log-file -
+web: gunicorn perfumeria.wsgi --workers 2 --threads 2 --timeout 120 --log-file -
