@@ -1,3 +1,17 @@
+<p align="center">
+  <img src="https://static.djangoproject.com/img/logos/django-logo-negative.svg" width="300" alt="Django Logo">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python" alt="Python">
+  <img src="https://img.shields.io/badge/Django-4.2-092E20?logo=django" alt="Django">
+  <img src="https://img.shields.io/badge/Django_REST_Framework-API-red" alt="DRF">
+  <img src="https://img.shields.io/badge/MySQL-Database-4479A1?logo=mysql" alt="MySQL">
+  <img src="https://img.shields.io/badge/PostgreSQL-Production-336791?logo=postgresql" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+</p>
+
+
 # AppMovilBack
 
 Backend desarrollado con **Django** y **Django REST Framework** para una aplicación móvil de perfumería. Proporciona una API REST para la gestión de usuarios, clientes, productos, ventas, facturación, autenticación y administración del sistema.
